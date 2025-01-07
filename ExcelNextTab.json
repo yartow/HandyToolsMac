@@ -1,0 +1,53 @@
+{
+  "description": "Map Fn + Ctrl + Up/Down to Ctrl + PageUp/PageDown in Excel",
+  "manipulators": [
+    {
+      "from": {
+        "key_code": "down_arrow",
+        "modifiers": {
+          "mandatory": [
+            "fn",
+            "control"
+          ]
+        }
+      },
+      "to": [
+        {
+          "key_code": "page_down",
+          "modifiers": [
+            "control"
+          ]
+        }
+      ],
+      "type": "basic"
+    },
+    {
+      "from": {
+        "key_code": "up_arrow",
+        "modifiers": {
+          "mandatory": [
+            "fn",
+            "control"
+          ]
+        }
+      },
+      "to": [
+        {
+          "key_code": "page_up",
+          "modifiers": [
+            "control"
+          ]
+        }
+      ],
+      "type": "basic"
+    }
+  ],
+  "conditions": [
+    {
+      "type": "frontmost_application_if",
+      "bundle_identifiers": [
+        "^com\\.microsoft\\.Excel$"
+      ]
+    }
+  ]
+}
