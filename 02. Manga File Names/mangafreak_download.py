@@ -88,9 +88,18 @@ IMAGE_SELECTORS = [
 
 
 def fetch_page_html(url: str) -> BeautifulSoup:
-    r = session.get(url, timeout=20)
-    r.raise_for_status()
-    return BeautifulSoup(r.text, "html.parser")
+    for attempt in range(3):
+        try:
+            r = session.get(url, timeout=30)
+            r.raise_for_status()
+            return BeautifulSoup(r.text, "html.parser")
+        except requests.HTTPError:
+            raise
+        except Exception as e:
+            if attempt == 2:
+                raise
+            print(f"  Page fetch error (attempt {attempt + 1}/3): {e} — retrying...")
+            time.sleep(3 * (attempt + 1))
 
 
 def find_images(soup: BeautifulSoup, base_url: str, debug: bool = False) -> list[str]:
@@ -169,12 +178,21 @@ def save_cbz(image_paths: list[Path], cbz_path: Path):
 
 def download_chapter(origin: str, slug: str, chapter: int, out_dir: Path, debug: bool):
     url = build_chapter_url(origin, slug, chapter)
+    cbz_path = out_dir / f"Chapter_{chapter:04d}.cbz"
+
+    if cbz_path.exists():
+        print(f"\nChapter {chapter}: already downloaded, skipping.")
+        return True
+
     print(f"\nChapter {chapter}: {url}")
 
     try:
         soup = fetch_page_html(url)
     except requests.HTTPError as e:
         print(f"  HTTP error {e.response.status_code} — stopping.")
+        return False
+    except Exception as e:
+        print(f"  Failed to fetch page: {e} — stopping.")
         return False
 
     images = find_images(soup, url, debug=debug)
@@ -203,7 +221,6 @@ def download_chapter(origin: str, slug: str, chapter: int, out_dir: Path, debug:
         chap_folder.rmdir()
         return False
 
-    cbz_path = out_dir / f"Chapter_{chapter:04d}.cbz"
     save_cbz(img_paths, cbz_path)
     print(f"  Saved: {cbz_path.name}")
     return True
