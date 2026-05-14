@@ -177,7 +177,8 @@ def filter_chapters(chapters: List[Dict], range_input: str) -> List[Dict]:
     return selected
 
 
-def download_chapter(chapter: Dict, out_dir: Path):
+def download_chapter(chapter: Dict, out_dir: Path) -> tuple[bool, str]:
+    """Returns (success, reason). reason is non-empty only on failure."""
     chap_id = chapter["id"]
     chap_num = chapter["attributes"]["chapter"] or "0"
     title = chapter["attributes"]["title"] or ""
@@ -186,7 +187,7 @@ def download_chapter(chapter: Dict, out_dir: Path):
     cbz_path = out_dir / f"Chapter {chap_num.zfill(4)}{title_suffix}.cbz"
     if cbz_path.exists():
         print(f"Already downloaded: {cbz_path.name} — skipping.")
-        return
+        return True, ""
 
     for attempt in range(4):
         try:
@@ -196,8 +197,9 @@ def download_chapter(chapter: Dict, out_dir: Path):
             break
         except Exception as e:
             if attempt == 3:
+                reason = f"server URL unavailable: {e}"
                 print(f"\nFailed to get server URL for chapter {chap_num}: {e}")
-                return
+                return False, reason
             time.sleep(3 * (attempt + 1))
     base_url = data["baseUrl"]
     chapter_hash = data["chapter"]["hash"]
@@ -236,6 +238,7 @@ def download_chapter(chapter: Dict, out_dir: Path):
     chap_folder.rmdir()
 
     print(f"Saved: {cbz_path.name}")
+    return True, ""
 
 
 def parse_args():
@@ -351,12 +354,22 @@ def main():
     out_dir = Path.cwd() / safe_dirname(manga_title)
     out_dir.mkdir(exist_ok=True)
 
+    skipped = []
     for i, chap in enumerate(selected, 1):
-        print(f"\n[{i}/{len(selected)}] Downloading chapter {chap['attributes']['chapter']}")
-        download_chapter(chap, out_dir)
+        chap_num = chap["attributes"]["chapter"]
+        print(f"\n[{i}/{len(selected)}] Downloading chapter {chap_num}")
+        ok, reason = download_chapter(chap, out_dir)
+        if not ok:
+            skipped.append((chap_num, reason))
         time.sleep(SLEEP_BETWEEN_CHAPTERS)
 
     print(f"\nAll done! Files saved in: {out_dir}")
+    if skipped:
+        print(f"\n⚠️  {len(skipped)} chapter(s) were skipped due to errors:")
+        for chap_num, reason in skipped:
+            print(f"  Chapter {chap_num}: {reason}")
+    else:
+        print("All chapters downloaded successfully.")
 
 
 if __name__ == "__main__":
