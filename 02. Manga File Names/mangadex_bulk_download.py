@@ -148,6 +148,13 @@ def list_chapters(chapters: List[Dict], manga_title: str, lang: str):
     print(f"\nTotal: {len(chapters)} chapter(s)")
 
 
+def _chap_num(chapter: Dict) -> float:
+    try:
+        return float(chapter["attributes"]["chapter"] or "0")
+    except (ValueError, TypeError):
+        return 0.0
+
+
 def filter_chapters(chapters: List[Dict], range_input: str) -> List[Dict]:
     if range_input == "all":
         return chapters
@@ -156,14 +163,16 @@ def filter_chapters(chapters: List[Dict], range_input: str) -> List[Dict]:
     for part in range_input.replace(" ", "").split(","):
         if "-" in part:
             start, end = part.split("-", 1)
+            lo, hi = float(start), float(end)
             selected.extend(
                 c for c in chapters
-                if start <= (c["attributes"]["chapter"] or "0") <= end
+                if lo <= _chap_num(c) <= hi
             )
         else:
+            target = float(part)
             selected.extend(
                 c for c in chapters
-                if c["attributes"]["chapter"] == part
+                if _chap_num(c) == target
             )
     return selected
 
