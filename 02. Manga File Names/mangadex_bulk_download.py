@@ -4,12 +4,14 @@ MangaDex bulk chapter downloader
 
 Usage examples:
   python3 mangadex_bulk_download.py -s "One Piece"
-  python3 mangadex_bulk_download.py -s "One Piece" -u mangadex.org -l en
-  python3 mangadex_bulk_download.py -s "Naruto" 1-10
-  python3 mangadex_bulk_download.py --url https://mangadex.org/title/<id>
+  python3 mangadex_bulk_download.py -s "One Piece" 1-10
+  python3 mangadex_bulk_download.py -s "Naruto" -l ja all
+  python3 mangadex_bulk_download.py --id a96676be-9137-4fea-a2b4-33c9f5f9fa70
+  python3 mangadex_bulk_download.py --url https://mangadex.org/title/<id> 5-20
+  python3 mangadex_bulk_download.py -s "One Piece" --list
 """
 
-import os
+import re
 import sys
 import time
 import zipfile
@@ -61,8 +63,6 @@ def get_manga_by_id(manga_id: str) -> Dict:
 
 
 def extract_id_from_url(url: str) -> Optional[str]:
-    """Extract manga ID from a MangaDex title URL."""
-    import re
     match = re.search(r"mangadex\.org/title/([a-f0-9-]{36})", url)
     return match.group(1) if match else None
 
@@ -71,6 +71,13 @@ def get_title(manga: Dict) -> str:
     attrs = manga["attributes"]
     titles = attrs.get("title", {})
     return titles.get("en") or next(iter(titles.values()), "Unknown")
+
+
+def safe_dirname(title: str) -> str:
+    """Convert a manga title to a safe directory name."""
+    name = re.sub(r'[<>:"/\\|?*]', "", title)
+    name = re.sub(r"\s+", " ", name).strip()
+    return name or "Unknown"
 
 
 def pick_manga(results: List[Dict]) -> str:
@@ -123,6 +130,24 @@ def get_chapters(manga_id: str, languages: List[str]) -> List[Dict]:
     return chapters
 
 
+def list_chapters(chapters: List[Dict], manga_title: str, lang: str):
+    print(f"\nAvailable chapters for '{manga_title}' ({lang}):\n")
+    for c in chapters:
+        attrs = c["attributes"]
+        num = attrs.get("chapter") or "?"
+        title = attrs.get("title") or ""
+        group_rel = next(
+            (r for r in c.get("relationships", []) if r["type"] == "scanlation_group"),
+            None,
+        )
+        group = ""
+        if group_rel and group_rel.get("attributes"):
+            group = f"  [{group_rel['attributes'].get('name', '')}]"
+        suffix = f" — {title}" if title else ""
+        print(f"  Ch {num:<8}{suffix}{group}")
+    print(f"\nTotal: {len(chapters)} chapter(s)")
+
+
 def filter_chapters(chapters: List[Dict], range_input: str) -> List[Dict]:
     if range_input == "all":
         return chapters
@@ -148,6 +173,11 @@ def download_chapter(chapter: Dict, out_dir: Path):
     chap_num = chapter["attributes"]["chapter"] or "0"
     title = chapter["attributes"]["title"] or ""
     title_suffix = f" - {title}" if title else ""
+
+    cbz_path = out_dir / f"Chapter {chap_num.zfill(4)}{title_suffix}.cbz"
+    if cbz_path.exists():
+        print(f"Already downloaded: {cbz_path.name} — skipping.")
+        return
 
     r = session.get(f"{BASE_URL}/at-home/server/{chap_id}")
     r.raise_for_status()
@@ -180,7 +210,6 @@ def download_chapter(chapter: Dict, out_dir: Path):
                     print(f"\nFailed to download {img}: {e}")
                 time.sleep(1)
 
-    cbz_path = out_dir / f"Chapter {chap_num.zfill(4)}{title_suffix}.cbz"
     with zipfile.ZipFile(cbz_path, "w", compression=zipfile.ZIP_DEFLATED) as z:
         for p in sorted(img_paths, key=lambda x: x.name):
             z.write(p, p.name)
@@ -201,11 +230,15 @@ Examples:
   %(prog)s -s "One Piece"
   %(prog)s -s "One Piece" 1-10
   %(prog)s -s "Naruto" -l ja all
+  %(prog)s -s "One Piece" --list
+  %(prog)s --id a96676be-9137-4fea-a2b4-33c9f5f9fa70
+  %(prog)s --id a96676be-9137-4fea-a2b4-33c9f5f9fa70 1-10
   %(prog)s --url https://mangadex.org/title/<id> 5-20
         """,
     )
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("-s", "--search", metavar="TITLE", help="Search for a manga by title")
+    source.add_argument("--id", metavar="MANGA_ID", help="Skip search using a MangaDex manga ID directly")
     source.add_argument("--url", metavar="URL", help="Direct MangaDex title URL")
 
     parser.add_argument(
@@ -227,6 +260,11 @@ Examples:
         metavar="CHAPTERS",
         help="Chapter range: all, 5, 1-10, or 1,3,5-8 (default: all)",
     )
+    parser.add_argument(
+        "--list",
+        action="store_true",
+        help="List available chapters and exit without downloading",
+    )
     return parser.parse_args()
 
 
@@ -242,7 +280,13 @@ def main():
             print(f"Could not extract a MangaDex title ID from: {args.url}")
             sys.exit(1)
         manga = get_manga_by_id(manga_id)
-        print(f"Using: {get_title(manga)}")
+        manga_title = get_title(manga)
+        print(f"Using: {manga_title}")
+    elif args.id:
+        manga_id = args.id.strip()
+        manga = get_manga_by_id(manga_id)
+        manga_title = get_title(manga)
+        print(f"Using: {manga_title}")
     else:
         site = args.site.lower().rstrip("/")
         if "mangadex" not in site:
@@ -257,17 +301,27 @@ def main():
 
         if len(results) == 1:
             manga_id = results[0]["id"]
-            print(f"Found: {get_title(results[0])}")
+            manga_title = get_title(results[0])
+            print(f"Found: {manga_title}")
         else:
             manga_id = pick_manga(results)
+            manga = get_manga_by_id(manga_id)
+            manga_title = get_title(manga)
+
+        print(f"\nTo access this manga directly next time, use:")
+        print(f"  python3 mangadex_bulk_download.py --id {manga_id}\n")
 
     # Fetch chapters
-    print("\nFetching chapter list...")
+    print("Fetching chapter list...")
     chapters = get_chapters(manga_id, [lang])
 
     if not chapters:
         print(f"No chapters found for language '{lang}'.")
         sys.exit(1)
+
+    if args.list:
+        list_chapters(chapters, manga_title, lang)
+        sys.exit(0)
 
     selected = filter_chapters(chapters, args.chapters)
 
@@ -275,9 +329,9 @@ def main():
         print(f"No chapters match '{args.chapters}'.")
         sys.exit(1)
 
-    print(f"\nWill download {len(selected)} chapter(s).")
+    print(f"Will download {len(selected)} chapter(s).")
 
-    out_dir = Path.cwd() / f"MangaDex_{manga_id[:8]}"
+    out_dir = Path.cwd() / safe_dirname(manga_title)
     out_dir.mkdir(exist_ok=True)
 
     for i, chap in enumerate(selected, 1):
