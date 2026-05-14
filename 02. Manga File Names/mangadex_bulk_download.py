@@ -188,9 +188,17 @@ def download_chapter(chapter: Dict, out_dir: Path):
         print(f"Already downloaded: {cbz_path.name} — skipping.")
         return
 
-    r = session.get(f"{BASE_URL}/at-home/server/{chap_id}")
-    r.raise_for_status()
-    data = r.json()
+    for attempt in range(4):
+        try:
+            r = session.get(f"{BASE_URL}/at-home/server/{chap_id}", timeout=30)
+            r.raise_for_status()
+            data = r.json()
+            break
+        except Exception as e:
+            if attempt == 3:
+                print(f"\nFailed to get server URL for chapter {chap_num}: {e}")
+                return
+            time.sleep(3 * (attempt + 1))
     base_url = data["baseUrl"]
     chapter_hash = data["chapter"]["hash"]
     images = data["chapter"]["data"]
