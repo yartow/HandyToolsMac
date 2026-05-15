@@ -99,7 +99,9 @@ def pick_manga(results: List[Dict]) -> str:
             alt_vals = list(alts[0].values())
             if alt_vals:
                 alt_str = f" ({alt_vals[0]})"
-        print(f"{i}. {title}{alt_str}")
+        url = f"https://mangadex.org/title/{m['id']}"
+        print(f"{i:2d}. {title}{alt_str}")
+        print(f"     {url}")
 
     print()
     while True:
