@@ -16,8 +16,10 @@ import sys
 import time
 import zipfile
 import argparse
+import threading
 from pathlib import Path
 from typing import List, Dict, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 from tqdm import tqdm
@@ -208,34 +210,53 @@ def download_chapter(chapter: Dict, out_dir: Path) -> tuple[bool, str]:
     chap_folder = out_dir / f"Chapter {chap_num.zfill(4)}{title_suffix}"
     chap_folder.mkdir(parents=True, exist_ok=True)
 
-    img_paths = []
-    for img in tqdm(images, desc=f"Ch {chap_num}", leave=False):
+    # Each thread needs its own session to avoid sharing connection state.
+    _local = threading.local()
+
+    def get_session():
+        if not hasattr(_local, "session"):
+            s = requests.Session()
+            s.headers.update({"User-Agent": "MangaDex-Bulk-Downloader/1.0"})
+            _local.session = s
+        return _local.session
+
+    def fetch_image(img: str) -> Optional[Path]:
         url = f"{base_url}/data/{chapter_hash}/{img}"
         local_path = chap_folder / img
-
         if local_path.exists():
-            img_paths.append(local_path)
-            continue
-
+            return local_path
+        s = get_session()
         for attempt in range(3):
             try:
-                resp = session.get(url, timeout=30)
+                resp = s.get(url, timeout=20)
                 resp.raise_for_status()
                 local_path.write_bytes(resp.content)
-                img_paths.append(local_path)
-                break
+                return local_path
             except Exception as e:
                 if attempt == 2:
-                    print(f"\nFailed to download {img}: {e}")
+                    tqdm.write(f"  Failed: {img}: {e}")
                 time.sleep(1)
+        return None
 
+    img_paths: List[Optional[Path]] = [None] * len(images)
+    with tqdm(total=len(images), desc=f"Ch {chap_num}", leave=False) as bar:
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            futures = {pool.submit(fetch_image, img): idx for idx, img in enumerate(images)}
+            for future in as_completed(futures):
+                img_paths[futures[future]] = future.result()
+                bar.update(1)
+
+    good_paths = [p for p in img_paths if p is not None]
     with zipfile.ZipFile(cbz_path, "w", compression=zipfile.ZIP_DEFLATED) as z:
-        for p in sorted(img_paths, key=lambda x: x.name):
+        for p in sorted(good_paths, key=lambda x: x.name):
             z.write(p, p.name)
 
-    for p in img_paths:
+    for p in good_paths:
         p.unlink()
-    chap_folder.rmdir()
+    try:
+        chap_folder.rmdir()
+    except OSError:
+        pass  # folder not empty if some images failed — leave it for inspection
 
     print(f"Saved: {cbz_path.name}")
     return True, ""
