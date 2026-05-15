@@ -1,6 +1,7 @@
 
 .DS_Store
 __pycache__/
+*.cbz
 *.pyc
 *.cbz
 *.jpg
