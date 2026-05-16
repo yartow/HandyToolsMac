@@ -7,6 +7,7 @@ Downloads all page images for one or more chapters and saves them as CBZ files.
 Usage:
   python3 mangafreak_download.py https://ww2.mangafreak.me/Read1_Mf_Ghost_1
   python3 mangafreak_download.py https://ww2.mangafreak.me/Read1_Mf_Ghost_1 --chapters 1-10
+  python3 mangafreak_download.py https://ww2.mangafreak.me/Read1_Mf_Ghost_1 --list
   python3 mangafreak_download.py https://ww2.mangafreak.me/Read1_Mf_Ghost_1 --debug
 """
 
@@ -227,6 +228,174 @@ def download_chapter(origin: str, slug: str, chapter: int, out_dir: Path, debug:
 
 
 # ---------------------------------------------------------------------------
+# Chapter listing
+# ---------------------------------------------------------------------------
+
+# (chapter_number_str, title) — number as a string to preserve decimals like "10.5"
+ChapterEntry = tuple[str, str]
+
+# Selectors tried in order against the series index page
+_CHAPTER_LIST_SELECTORS = [
+    ("a", {"href": re.compile(r"Read\d+_")}),   # any anchor whose href looks like a chapter link
+]
+
+# Selectors for a <select> dropdown found on the reader page
+_SELECT_SELECTORS = [
+    'select[name="chapter"]',
+    'select.chapter-select',
+    'select.selectpicker',
+    'select',
+]
+
+
+def _extract_chapter_num(text: str, href: str) -> str | None:
+    """Pull a chapter number from anchor text or href."""
+    # Prefer text like "Chapter 7" or just "7" / "7.5"
+    m = re.search(r"chapter\s*([0-9]+(?:\.[0-9]+)?)", text, re.I)
+    if m:
+        return m.group(1)
+    # Fall back to last numeric token in the href path
+    m = re.search(r"_([0-9]+(?:\.[0-9]+)?)/?$", href)
+    if m:
+        return m.group(1)
+    return None
+
+
+def _clean_title(raw: str, chapter_num: str) -> str:
+    """Strip the chapter-number prefix from the title text, if any."""
+    # Remove leading "Chapter N" / "Ch.N" / bare number
+    cleaned = re.sub(
+        rf"^(chapter\s*{re.escape(chapter_num)}[:\s\-–—]*|ch\.?\s*{re.escape(chapter_num)}[:\s\-–—]*)",
+        "",
+        raw,
+        flags=re.I,
+    ).strip(" :-–—")
+    return cleaned or raw.strip()
+
+
+def _parse_from_series_page(soup: BeautifulSoup, origin: str) -> list[ChapterEntry]:
+    """Extract chapter list from the manga's series/index page."""
+    results: list[ChapterEntry] = []
+    seen: set[str] = set()
+
+    for a in soup.find_all("a", href=True):
+        href: str = a["href"]
+        if not re.search(r"Read\d+_", href):
+            continue
+        abs_href = urljoin(origin, href)
+        # Only keep links that match the chapter-URL pattern (end with _<number>)
+        if not re.search(r"_\d+/?$", href):
+            continue
+
+        text = a.get_text(" ", strip=True)
+        num = _extract_chapter_num(text, href)
+        if num is None or num in seen:
+            continue
+        seen.add(num)
+        title = _clean_title(text, num)
+        results.append((num, title))
+
+    # Sort ascending by chapter number
+    results.sort(key=lambda x: float(x[0]))
+    return results
+
+
+def _parse_from_select(soup: BeautifulSoup) -> list[ChapterEntry]:
+    """Extract chapter list from a <select> dropdown on the reader page."""
+    for selector in _SELECT_SELECTORS:
+        sel = soup.select_one(selector)
+        if sel is None:
+            continue
+        results: list[ChapterEntry] = []
+        seen: set[str] = set()
+        for opt in sel.find_all("option"):
+            value = opt.get("value", "")
+            text  = opt.get_text(" ", strip=True)
+            num   = _extract_chapter_num(text, value)
+            if num is None or num in seen:
+                continue
+            seen.add(num)
+            title = _clean_title(text, num)
+            results.append((num, title))
+        if results:
+            results.sort(key=lambda x: float(x[0]))
+            return results
+    return []
+
+
+def fetch_chapter_list(origin: str, slug: str, debug: bool = False) -> list[ChapterEntry]:
+    """
+    Return all (chapter_number, title) pairs for the series.
+
+    Strategy 1 — Series index page at /Manga/<slug-without-Read1_prefix>
+    Strategy 2 — <select> dropdown on chapter 1's reader page
+    Strategy 3 — Raw scan: walk chapter 1 page for any chapter-shaped links
+    """
+    # Derive series slug: "Read1_Mf_Ghost" → "Mf_Ghost"
+    series_part = re.sub(r"^Read\d+_", "", slug.split("/")[-1])
+    series_url  = f"{origin}/Manga/{series_part}"
+
+    if debug:
+        print(f"[list] Trying series page: {series_url}")
+
+    # Strategy 1: series index page
+    try:
+        soup = fetch_page_html(series_url)
+        chapters = _parse_from_series_page(soup, origin)
+        if chapters:
+            if debug:
+                print(f"[list] Found {len(chapters)} chapters via series page")
+            return chapters
+    except Exception as e:
+        if debug:
+            print(f"[list] Series page failed: {e}")
+
+    # Strategy 2 & 3: reader page for chapter 1
+    reader_url = build_chapter_url(origin, slug, 1)
+    if debug:
+        print(f"[list] Falling back to reader page: {reader_url}")
+    try:
+        soup = fetch_page_html(reader_url)
+        chapters = _parse_from_select(soup)
+        if chapters:
+            if debug:
+                print(f"[list] Found {len(chapters)} chapters via select dropdown")
+            return chapters
+        # Strategy 3: any chapter-shaped links on the reader page
+        chapters = _parse_from_series_page(soup, origin)
+        if chapters:
+            if debug:
+                print(f"[list] Found {len(chapters)} chapters via link scan on reader page")
+            return chapters
+    except Exception as e:
+        if debug:
+            print(f"[list] Reader page failed: {e}")
+
+    return []
+
+
+def cmd_list(origin: str, slug: str, debug: bool):
+    """Print all chapters with numbers and titles."""
+    print("Fetching chapter list…")
+    chapters = fetch_chapter_list(origin, slug, debug=debug)
+
+    if not chapters:
+        print(
+            "No chapters found. The site may use JavaScript rendering.\n"
+            "Try --debug to inspect the raw page."
+        )
+        return
+
+    width = max(len(c[0]) for c in chapters)
+    print(f"\n{'#':<{width + 2}}  Title")
+    print("─" * 50)
+    for num, title in chapters:
+        label = f"Ch.{num}"
+        print(f"{label:<{width + 4}}  {title}" if title else label)
+    print(f"\n{len(chapters)} chapter(s) total.")
+
+
+# ---------------------------------------------------------------------------
 # Argument parsing & main
 # ---------------------------------------------------------------------------
 
@@ -247,6 +416,7 @@ def parse_args():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  %(prog)s https://ww2.mangafreak.me/Read1_Mf_Ghost_1 --list
   %(prog)s https://ww2.mangafreak.me/Read1_Mf_Ghost_1
   %(prog)s https://ww2.mangafreak.me/Read1_Mf_Ghost_1 --chapters 1-10
   %(prog)s https://ww2.mangafreak.me/Read1_Mf_Ghost_5 --chapters all
@@ -254,6 +424,11 @@ Examples:
         """,
     )
     parser.add_argument("url", help="URL of any chapter (e.g. .../Read1_Mf_Ghost_1)")
+    parser.add_argument(
+        "--list",
+        action="store_true",
+        help="List all chapter numbers and titles, then exit",
+    )
     parser.add_argument(
         "--chapters",
         metavar="RANGE",
@@ -287,6 +462,11 @@ def main():
     series_name = slug.split("/")[-1]  # e.g. Read1_Mf_Ghost
     out_dir = Path.cwd() / series_name
     out_dir.mkdir(exist_ok=True)
+
+    # List mode: print all chapters and exit
+    if args.list:
+        cmd_list(origin, slug, debug=args.debug)
+        sys.exit(0)
 
     # Debug mode: inspect first page only, then exit
     if args.debug:
