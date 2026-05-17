@@ -70,6 +70,23 @@ Stopped. Generating summary…
   71–80°C   ████ 12 (16%)
   81–90°C   ██ 3 (4%)
   91–100°C  █ 1 (1%)
+
+  ── Analysis ──────────────────────────────
+  Trend       : ↑ rising   (+2.3°C/hr)
+  Idle baseline: 58.4°C  (coolest 7 readings)
+  Streak ≥85°C : 2 consecutive readings  (~4 min)
+  Streak ≥90°C : 1 consecutive readings  (~2 min)
+  Hottest hour: 14:00  (avg 78.3°C)
+  Coolest hour: 12:00  (avg 61.1°C)
+  Volatility  : 7.2°C std dev  (moderate)
+
+  ── Suggestions ───────────────────────────
+  ⚠ Gradual upward trend (+2.3°C/hr). Normal for sustained
+    workloads, but worth monitoring if it continues after
+    your task finishes.
+  ⚠ Sustained ≥90°C for ~2 min. Prolonged heat at this level
+    throttles the CPU and accelerates wear. Enable Turbo Boost
+    Switcher and check for background tasks.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
@@ -89,6 +106,37 @@ timestamp,temp_c
 2026-05-17T12:02:01Z,63.5
 ...
 ```
+
+## Analysis & suggestions
+
+Every report includes two sections beyond the raw numbers:
+
+**Analysis** examines patterns in the data:
+
+| Field | What it tells you |
+|-------|------------------|
+| **Trend** | Linear regression slope — is the Mac heating up, cooling down, or holding steady over the session? |
+| **Idle baseline** | Average of the coolest 10% of readings — approximates the resting temperature when nothing heavy is running |
+| **Streak ≥N°C** | Longest consecutive run of readings above each threshold, converted to minutes |
+| **Hottest / coolest hour** | Which hour of the day (local time) averaged the highest and lowest temperatures — only shown when enough hourly data exists |
+| **Volatility** | Standard deviation described as steady / moderate / bursty — high variance points to intermittent CPU spikes rather than sustained load |
+
+**Suggestions** are generated automatically based on what the data shows:
+
+| Condition | Suggestion |
+|-----------|------------|
+| Trend > +3°C/hr | Background process likely running — check Activity Monitor |
+| Trend +1.5–3°C/hr | Gradual rise — normal for sustained work, monitor if it continues after task ends |
+| Idle baseline > 72°C | High resting temp — likely dried-out thermal paste (common on 2018 MBP) |
+| Idle baseline 65–72°C | Moderate resting temp — ensure Turbo Boost Switcher is off during light use |
+| Streak ≥ 3 readings above 90°C | Prolonged critical heat — enable Turbo Boost Switcher, check for background tasks |
+| Streak ≥ 5 readings above 85°C | Extended high load — consider Turbo Boost Switcher for long sessions |
+| Hottest hour 8°C+ above coolest | Clear daily heat pattern — schedule heavy tasks away from the hot window |
+| Std dev > 10°C | Bursty spikes — common causes: Time Machine, Spotlight, iCloud sync, browser JS |
+
+If none of the conditions above are triggered, the suggestions section shows a single `✓ All good` line.
+
+---
 
 ## Sleep behaviour
 

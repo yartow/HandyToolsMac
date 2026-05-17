@@ -42,6 +42,7 @@ run_report() {
     local filter_arg="${1:-}"
     python3 - "$LOG_FILE" "$filter_arg" <<'PYEOF'
 import sys, csv, os
+from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 from statistics import mean, median, multimode, stdev
 
@@ -164,6 +165,136 @@ for label, fn in brackets:
         continue
     bar = "█" * max(1, int(count / len(temps) * 30))
     print(f"  {label:9s} {bar} {count} ({count/len(temps)*100:.0f}%)")
+
+# ── analysis ───────────────────────────────────────────────────────────────
+suggestions = []
+
+print()
+print("  ── Analysis ──────────────────────────────")
+
+# 1. Trend: linear regression slope in °C per hour
+if len(temps) >= 4:
+    n  = len(temps)
+    xs = [(ts - timestamps[0]).total_seconds() / 3600 for ts in timestamps]
+    xm = sum(xs) / n
+    tm = mean(temps)
+    num = sum((xs[i] - xm) * (temps[i] - tm) for i in range(n))
+    den = sum((xs[i] - xm) ** 2 for i in range(n))
+    slope = num / den if den != 0 else 0
+
+    if   slope >  2: trend_label = f"↑ rising   (+{slope:.1f}°C/hr)"
+    elif slope < -2: trend_label = f"↓ falling  ({slope:.1f}°C/hr)"
+    else:            trend_label = f"→ stable   ({slope:+.1f}°C/hr)"
+    print(f"  Trend       : {trend_label}")
+
+    if slope > 3:
+        suggestions.append(
+            "Temperature is trending up sharply (+{:.1f}°C/hr). A background task\n"
+            "  may be running — check Activity Monitor (sort by CPU %).".format(slope)
+        )
+    elif slope > 1.5:
+        suggestions.append(
+            "Gradual upward trend (+{:.1f}°C/hr). Normal for sustained workloads,\n"
+            "  but worth monitoring if it continues after your task finishes.".format(slope)
+        )
+    elif slope < -2:
+        suggestions.append("Temperature is cooling down — workload has eased off.")
+
+# 2. Idle baseline: average of the coolest 10 % of readings
+n_baseline = max(1, len(temps) // 10)
+baseline   = mean(sorted(temps)[:n_baseline])
+print(f"  Idle baseline: {baseline:.1f}°C  (coolest {n_baseline} reading{'s' if n_baseline>1 else ''})")
+
+if baseline > 72:
+    suggestions.append(
+        f"Idle baseline is high ({baseline:.1f}°C). On a 2018 MBP this often means\n"
+        "  dried-out thermal paste. Reapplying it is the single most effective\n"
+        "  hardware fix for chronic heat on this model."
+    )
+elif baseline > 65:
+    suggestions.append(
+        f"Idle baseline of {baseline:.1f}°C is moderate. Ensure Turbo Boost Switcher\n"
+        "  is OFF during light use to keep the CPU at its base clock."
+    )
+
+# 3. Sustained heat streaks: longest consecutive run above each threshold
+streak_thresholds = [85, 90, 95]
+any_streak = False
+for thr in streak_thresholds:
+    max_streak = cur = 0
+    for t in temps:
+        if t >= thr:
+            cur += 1
+            max_streak = max(max_streak, cur)
+        else:
+            cur = 0
+    if max_streak > 0:
+        duration_min = int(max_streak * inferred_interval / 60)
+        print(f"  Streak ≥{thr}°C : {max_streak} consecutive reading{'s' if max_streak>1 else ''}"
+              f"  (~{duration_min} min)")
+        any_streak = True
+        if thr >= 90 and max_streak >= 3:
+            suggestions.append(
+                f"Sustained ≥{thr}°C for ~{duration_min} min. Prolonged heat at this level\n"
+                "  throttles the CPU and accelerates wear. Enable Turbo Boost Switcher\n"
+                "  and check for background tasks (backups, Spotlight, sync)."
+            )
+        elif thr == 85 and max_streak >= 5:
+            suggestions.append(
+                f"Ran above 85°C for ~{duration_min} min continuously. Consider enabling\n"
+                "  Turbo Boost Switcher during long sessions."
+            )
+if not any_streak:
+    print("  Streaks     : none above 85°C")
+
+# 4. Hottest hour of day (local time, only hours with ≥ 3 readings)
+hour_temps: dict[int, list[float]] = defaultdict(list)
+for ts, t in zip(timestamps, temps):
+    hour_temps[ts.astimezone().hour].append(t)
+
+ranked = sorted(
+    [(h, mean(ts)) for h, ts in hour_temps.items() if len(ts) >= 3],
+    key=lambda x: x[1],
+    reverse=True,
+)
+if ranked:
+    hot_hour, hot_avg = ranked[0]
+    cool_hour, cool_avg = ranked[-1]
+    print(f"  Hottest hour: {hot_hour:02d}:00  (avg {hot_avg:.1f}°C)")
+    if len(ranked) >= 3:
+        print(f"  Coolest hour: {cool_hour:02d}:00  (avg {cool_avg:.1f}°C)")
+        if hot_avg - cool_avg >= 8:
+            suggestions.append(
+                f"Temperature peaks around {hot_hour:02d}:00 (avg {hot_avg:.1f}°C) vs\n"
+                f"  {cool_hour:02d}:00 (avg {cool_avg:.1f}°C). Schedule CPU-heavy tasks\n"
+                f"  outside the {hot_hour:02d}:00 window if possible."
+            )
+
+# 5. Volatility
+if len(temps) > 1:
+    sd = stdev(temps)
+    volatility = "high — bursty workload" if sd > 8 else ("moderate" if sd > 4 else "low — steady load")
+    print(f"  Volatility  : {sd:.1f}°C std dev  ({volatility})")
+    if sd > 10:
+        suggestions.append(
+            f"High temperature variance ({sd:.1f}°C std dev) suggests intermittent\n"
+            "  CPU spikes — common causes: Time Machine, Spotlight indexing, iCloud\n"
+            "  sync, or browser tabs running background JS."
+        )
+
+# ── suggestions ────────────────────────────────────────────────────────────
+print()
+print("  ── Suggestions ───────────────────────────")
+if not suggestions:
+    print("  ✓ All good — temps look healthy for this session.")
+else:
+    for i, s in enumerate(suggestions, 1):
+        # Indent continuation lines to align with the bullet
+        lines = s.split("\n")
+        print(f"  {'⚠' if i <= len(suggestions) else '•'} {lines[0]}")
+        for line in lines[1:]:
+            print(f"    {line}")
+
 print("━" * 52)
 print()
 PYEOF
