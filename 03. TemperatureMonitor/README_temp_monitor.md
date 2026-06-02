@@ -1,6 +1,6 @@
 # temp_monitor.sh
 
-CPU temperature logger for the 2018 MacBook Pro i7. Logs readings to a CSV file in the background and produces a statistics report on demand — or automatically when you press Ctrl+C.
+CPU temperature logger for macOS. Logs readings to a CSV file in the background and produces a statistics report on demand — or automatically when you press Ctrl+C.
 
 ## Requirements
 
