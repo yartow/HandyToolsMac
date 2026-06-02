@@ -1,5 +1,4 @@
 .DS_Store
-*.xlsx
 node_modules/
 __pycache__/
 *.cbz
@@ -8,3 +7,4 @@ __pycache__/
 *.jpg
 *.png
 *$*
+*.xlsx
