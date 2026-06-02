@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GDrive Browser</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ── Setup screen (shown when rclone is missing) ── -->
+  <div id="setup-screen" class="hidden">
+    <div class="setup-card">
+      <h1>GDrive Browser</h1>
+      <p class="setup-lead">rclone was not found on this machine.</p>
+      <p>This app requires <strong>rclone</strong> installed and a Google Drive remote configured as <code>gdrive</code>.</p>
+      <ol class="setup-steps">
+        <li>Install rclone:<br><code>brew install rclone</code></li>
+        <li>Configure a Google Drive remote named <code>gdrive</code>:<br><code>rclone config</code></li>
+      </ol>
+      <div class="setup-actions">
+        <button id="setup-docs-btn" class="btn-link">Open rclone docs ↗</button>
+        <button id="setup-retry-btn" class="btn-primary">Retry</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Main browser ── -->
+  <div id="browser-screen" class="hidden">
+
+    <!-- Traffic-light spacer + toolbar -->
+    <div id="toolbar">
+      <div class="toolbar-left">
+        <button id="up-btn" class="icon-btn" title="Go up (Backspace)" disabled>↑</button>
+        <nav id="breadcrumb"></nav>
+      </div>
+      <button id="settings-btn" class="icon-btn" title="Settings">⚙</button>
+    </div>
+
+    <!-- Content area -->
+    <div id="content-area">
+      <!-- Loading overlay -->
+      <div id="loading" class="hidden">
+        <div class="spinner"></div>
+        <span>Loading…</span>
+      </div>
+
+      <!-- Column headers -->
+      <div id="list-header">
+        <span class="col-icon"></span>
+        <span class="col-name col-sortable" id="sort-name">Name</span>
+        <span class="col-bar"></span>
+        <span class="col-size col-sortable" id="sort-size">Size</span>
+      </div>
+
+      <!-- File list -->
+      <div id="item-list"></div>
+    </div>
+
+    <!-- Status bar -->
+    <div id="status-bar"></div>
+
+  </div>
+
+  <!-- ── Settings overlay ── -->
+  <div id="settings-overlay" class="hidden">
+    <div class="settings-card">
+      <h2>Settings</h2>
+      <label>
+        rclone remote name
+        <input id="remote-input" type="text" placeholder="gdrive" spellcheck="false">
+      </label>
+      <label>
+        Start path (leave blank for root)
+        <input id="root-path-input" type="text" placeholder="e.g. My Drive/Work" spellcheck="false">
+      </label>
+      <div class="settings-actions">
+        <button id="settings-cancel-btn" class="btn-secondary">Cancel</button>
+        <button id="settings-save-btn" class="btn-primary">Save & reload</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
