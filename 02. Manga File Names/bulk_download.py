@@ -40,8 +40,7 @@ def search_manga(title: str) -> List[Dict]:
         "limit": 20,
         "includes[]": ["cover_art"],
         "order[relevance]": "desc"
-
-   ylan
+    }
 
     r = session.get(f"{BASE_URL}/manga", params=params)
     r.raise_for_status()
@@ -232,9 +231,7 @@ def main():
     if range_input == "all":
 
 
-        selected =
-
- chapters
+        selected = chapters
 
 
     else:

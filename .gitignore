@@ -1,4 +1,10 @@
-
 .DS_Store
 *.xlsx
 node_modules/
+__pycache__/
+*.cbz
+*.pyc
+*.cbz
+*.jpg
+*.png
+*$*
