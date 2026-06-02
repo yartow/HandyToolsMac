@@ -1,0 +1,16 @@
+{
+  "name": "photo-duplicate-finder",
+  "version": "1.0.0",
+  "description": "Find duplicate photos between Google Drive and Google Photos",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {
+    "electron-store": "^8.1.0",
+    "jimp": "^0.22.12"
+  },
+  "devDependencies": {
+    "electron": "^42.0.0"
+  }
+}

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photo Duplicate Finder</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ── Setup screen ── -->
+  <div id="setup-screen" class="screen hidden">
+    <div class="setup-card">
+      <h1>Photo Duplicate Finder</h1>
+      <div id="setup-status"></div>
+      <div id="setup-rclone-missing" class="hidden">
+        <p class="status-error">rclone was not found on this machine.</p>
+        <ol class="setup-steps">
+          <li>Install rclone: <code>brew install rclone</code></li>
+          <li>Configure Google Drive remote: <code>rclone config</code> (name it <code>gdrive</code>)</li>
+        </ol>
+        <button id="setup-docs-btn" class="btn-link">Open rclone docs ↗</button>
+      </div>
+      <div id="setup-gdrive-missing" class="hidden">
+        <p class="status-error">No Google Drive remote found.</p>
+        <p>Run <code>rclone config</code> and add a remote named <code>gdrive</code> (type: Google Drive).</p>
+      </div>
+      <div id="setup-gphotos-missing" class="hidden">
+        <p class="status-warn">Google Photos remote (<code>gphotos</code>) not configured.</p>
+        <p>To compare against Google Photos, run <code>rclone config</code> and add a remote:</p>
+        <ol class="setup-steps">
+          <li>Choose <code>n</code> (new remote), name it <code>gphotos</code></li>
+          <li>Storage type: <strong>Google Photos</strong></li>
+          <li>Leave client_id and secret blank, complete OAuth in browser</li>
+          <li>Verify: <code>rclone lsd gphotos:album</code></li>
+        </ol>
+      </div>
+      <div class="setup-actions">
+        <button id="setup-docs-btn2" class="btn-link">rclone docs ↗</button>
+        <button id="setup-retry-btn" class="btn-secondary">Retry</button>
+        <button id="setup-continue-btn" class="btn-primary hidden">Continue without Google Photos</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Config screen ── -->
+  <div id="config-screen" class="screen hidden">
+    <div id="config-toolbar" class="toolbar">
+      <span class="toolbar-title">Photo Duplicate Finder</span>
+      <span id="config-rclone-ver" class="toolbar-version"></span>
+    </div>
+    <div class="config-body">
+      <div class="config-section">
+        <h2>Google Drive</h2>
+        <label>
+          Remote name
+          <input id="config-drive-remote" type="text" spellcheck="false" placeholder="gdrive">
+        </label>
+        <label>
+          Folder path to scan <span class="label-hint">(leave blank to scan entire Drive)</span>
+          <input id="config-drive-path" type="text" spellcheck="false" placeholder="e.g. Photos/Camera Roll">
+        </label>
+      </div>
+
+      <div class="config-section">
+        <h2>Google Photos <span id="config-photos-badge" class="badge-ok hidden">configured</span></h2>
+        <label class="label-row">
+          <input id="config-include-photos" type="checkbox" checked>
+          Compare against Google Photos library
+        </label>
+        <label id="config-photos-remote-label">
+          Remote name
+          <input id="config-photos-remote" type="text" spellcheck="false" placeholder="gphotos">
+        </label>
+      </div>
+
+      <div class="config-section">
+        <h2>Scan mode</h2>
+        <label class="label-row">
+          <input type="radio" name="scan-mode" id="config-mode-quick" value="quick" checked>
+          <span><strong>Quick scan</strong> — match by filename (no downloads, instant)</span>
+        </label>
+        <label class="label-row label-disabled">
+          <input type="radio" name="scan-mode" id="config-mode-deep" value="deep" disabled>
+          <span><strong>Deep scan</strong> — perceptual hash every photo (coming soon)</span>
+        </label>
+      </div>
+
+      <button id="start-scan-btn" class="btn-primary btn-large">Start Scan</button>
+    </div>
+  </div>
+
+  <!-- ── Scanning screen ── -->
+  <div id="scanning-screen" class="screen hidden">
+    <div class="scan-center">
+      <div class="spinner"></div>
+      <p id="scan-phase">Preparing…</p>
+      <p id="scan-file" class="scan-file"></p>
+      <div class="progress-bar-wrap">
+        <div id="scan-bar" class="progress-bar progress-bar-indeterminate"></div>
+      </div>
+      <p id="scan-count" class="scan-count"></p>
+      <button id="cancel-scan-btn" class="btn-secondary">Cancel</button>
+    </div>
+  </div>
+
+  <!-- ── Results screen ── -->
+  <div id="results-screen" class="screen hidden">
+    <div id="results-toolbar" class="toolbar">
+      <button id="results-back-btn" class="icon-btn">← Back</button>
+      <span id="results-summary" class="toolbar-title"></span>
+    </div>
+    <div id="group-list"></div>
+    <div id="delete-footer" class="hidden">
+      <span id="delete-count"></span>
+      <button id="delete-btn" class="btn-danger">Delete selected</button>
+    </div>
+  </div>
+
+  <!-- ── Delete confirmation modal ── -->
+  <div id="delete-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <h2>Confirm deletion</h2>
+      <p class="modal-note">These files will be permanently deleted from Google Drive:</p>
+      <ul id="delete-modal-list"></ul>
+      <div class="modal-actions">
+        <button id="delete-cancel-btn" class="btn-secondary">Cancel</button>
+        <button id="delete-confirm-btn" class="btn-danger">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
