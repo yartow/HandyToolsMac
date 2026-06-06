@@ -1,7 +1,9 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron')
+const { app, BrowserWindow, ipcMain, shell, nativeImage } = require('electron')
 const { execFile } = require('child_process')
 const path = require('path')
 const Store = require('electron-store')
+
+app.setName('GDAY')
 
 const store = new Store({
   defaults: {
@@ -41,7 +43,13 @@ function createWindow() {
   })
 }
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  if (process.platform === 'darwin') {
+    const icon = nativeImage.createFromPath(path.join(__dirname, 'icon.png'))
+    app.dock.setIcon(icon)
+  }
+  createWindow()
+})
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })
 app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
 

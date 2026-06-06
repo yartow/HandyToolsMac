@@ -1,5 +1,6 @@
 {
-  "name": "gdrive-browser",
+  "name": "gday",
+  "productName": "GDAY",
   "version": "1.0.0",
   "description": "WinDirStat-style Google Drive folder size browser powered by rclone",
   "main": "main.js",
