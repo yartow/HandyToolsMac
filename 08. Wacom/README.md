@@ -1,19 +1,12 @@
-# Wacom Tablet Configuration for Ubuntu
+# Wacom Pen Tablet Configuration for Ubuntu
 
-This toolkit provides scripts to configure your Wacom pen tablet on Ubuntu to behave like the Windows driver, with customizable button mappings.
+Configure your Wacom pen tablet buttons via CLI to enable:
+- **Button 1**: Right-click (tap and click)
+- **Button 2**: Scroll (tap and click)
 
-## Features
+Supports both X11 and Wayland sessions with automatic detection.
 
-- **Button 1**: Right-click (context menu)
-- **Button 2**: Middle-click / Scroll button
-- **Button 3**: Left-click (if available)
-- Auto-detection of Wacom devices
-- Optional auto-startup via systemd service
-- Sensitive pressure detection for better tap response
-
-## Installation
-
-### Quick Setup (Recommended)
+## Quick Start
 
 ```bash
 cd ~/path/to/wacom/directory
@@ -21,188 +14,82 @@ chmod +x setup.sh
 ./setup.sh
 ```
 
-This will:
-1. Install required dependencies (`xsetwacom`, `libxdevice6`, etc.)
-2. Test your Wacom device configuration
-3. Offer to set up auto-configuration on startup
+That's it! Your tablet is configured.
 
-### Manual Setup
+## Manual Configuration
 
-If you prefer to set up manually:
-
-```bash
-# Install dependencies
-sudo apt-get update
-sudo apt-get install -y xsetwacom libxdevice6 libinput-tools
-
-# Make scripts executable
-chmod +x wacom_config.sh wacom_config_advanced.sh
-
-# Run configuration
-./wacom_config_advanced.sh
-```
-
-## Usage
-
-### Run Configuration Manually
+If you prefer to run the configuration manually:
 
 ```bash
 ./wacom_config_advanced.sh
 ```
 
-### Check Installed Service
+## How It Works
 
-If you used the automated setup:
+### Button Mapping
 
-```bash
-# Check service status
-systemctl status wacom-config
+| Button | Action |
+|--------|--------|
+| Button 1 | Right-click (context menu) |
+| Button 2 | Middle-click / Scroll |
 
-# View logs
-journalctl -u wacom-config -f
+### Scrolling
 
-# Restart service
-sudo systemctl restart wacom-config
-```
-
-## Button Mapping Details
-
-### Default Configuration
-
-| Button | Function | Action |
-|--------|----------|--------|
-| Button 1 | Right-click | Opens context menus |
-| Button 2 | Middle-click | Scroll in compatible apps |
-| Button 3 | Left-click | Primary selection |
-
-### Advanced Scroll Usage
-
-In most applications that support middle-mouse-button scrolling:
+In most applications that support middle-mouse scrolling:
 1. Hold **Button 2** (pen button)
 2. Move your pen up/down to scroll
 
-If an app doesn't support middle-button scrolling natively, you can:
-- Use Button 2 for pasting in compatible applications
-- Remap buttons in app-specific settings
+## Session Detection
+
+The script automatically detects your session type:
+- **X11**: Uses `xsetwacom` for button mapping
+- **Wayland**: Uses native libinput button mapping
 
 ## Troubleshooting
 
-### Device Not Found
-
-If you get "No Wacom device found":
+### Check Your Session Type
 
 ```bash
-# List all input devices
+# X11
+echo $DISPLAY
+
+# Wayland
+echo $WAYLAND_DISPLAY
+```
+
+### List Connected Wacom Devices
+
+```bash
+# For X11
 xsetwacom list devices
 
-# Or use xinput to see all devices
-xinput list
+# For Wayland
+libinput list-devices | grep -i wacom
 ```
 
-Then manually update the script with your device ID.
-
-### Changes Not Persisting After Reboot
-
-Make sure the systemd service is enabled:
+### Re-run Configuration
 
 ```bash
-sudo systemctl enable wacom-config
-sudo systemctl status wacom-config
+./wacom_config_advanced.sh
 ```
 
-### Service Not Starting
+Check the output for any errors. If your device isn't detected, please verify it's connected and run the device listing commands above.
 
-Check the systemd service logs:
+## What Gets Installed
 
-```bash
-journalctl -u wacom-config -f
-```
+- `xsetwacom` — X11 button mapping tool
+- `libinput-tools` — Wayland input device tools
+- `libxdevice6` — X11 device library
 
-Common issues:
-- **DISPLAY not set**: May happen on multi-display setups
-- **User permissions**: Service must run as your user (check setup.sh username)
-- **X server not ready**: Try waiting longer with `After=` directives
+## Scripts
 
-### Manual Configuration
-
-If automated setup fails, you can manually set buttons:
-
-```bash
-# Get your device ID (look for pen/stylus)
-xsetwacom list devices
-
-# Then use:
-xsetwacom set <DEVICE_ID> Button 1 3  # Button 1 = right-click
-xsetwacom set <DEVICE_ID> Button 2 2  # Button 2 = middle-click
-xsetwacom set <DEVICE_ID> Button 3 1  # Button 3 = left-click
-```
-
-## Advanced Configuration
-
-### Adjust Pressure Sensitivity
-
-Edit `wacom_config_advanced.sh` and modify:
-
-```bash
-xsetwacom set "$DEVICE_ID" Threshold 10
-```
-
-- **Lower values** (1-5): More sensitive, lighter taps trigger
-- **Higher values** (15-20): Less sensitive, harder presses needed
-
-### Disable Specific Buttons
-
-To disable a button (useful if you keep accidentally pressing it):
-
-```bash
-xsetwacom set <DEVICE_ID> Button <N> 0
-```
-
-### View All Settings
-
-```bash
-xsetwacom list param <DEVICE_ID>
-```
-
-## Scripts Overview
-
-### `setup.sh`
-Interactive setup script that installs dependencies and configures systemd auto-start.
-
-### `wacom_config_advanced.sh`
-Main configuration script with automatic device detection and comprehensive button setup.
-
-### `wacom_config.sh`
-Basic configuration script (simpler version).
-
-### `wacom-config.service`
-Systemd service unit file (created/modified during setup).
-
-## Uninstall / Disable
-
-To remove the auto-startup configuration:
-
-```bash
-sudo systemctl disable wacom-config
-sudo systemctl stop wacom-config
-sudo rm /etc/systemd/system/wacom-config.service
-sudo systemctl daemon-reload
-```
-
-The button configuration will still work manually with `./wacom_config_advanced.sh`.
+- **setup.sh** — One-time setup installer
+- **wacom_config_advanced.sh** — Configuration script (works on X11 and Wayland)
+- **diagnose.sh** — Troubleshooting and device detection tool
 
 ## Notes
 
-- These scripts use `xsetwacom` which is the standard Wacom configuration tool for X11
-- Wayland support may be limited; these scripts are primarily for X11 sessions
-- Configurations persist until the next reboot (unless you set up the systemd service)
-- Some buttons may not be available depending on your tablet model
-
-## Support
-
-If you encounter issues:
-
-1. Check device detection: `xsetwacom list devices`
-2. View service logs: `journalctl -u wacom-config -f`
-3. Try running the script manually: `./wacom_config_advanced.sh`
-4. Check the Wacom Linux documentation: https://linuxwacom.github.io/
+- Configuration persists until next manual change
+- Works on both X11 and Wayland sessions
+- Pen pressure sensitivity is optimized for tap detection
+- For additional Wacom settings, use your system's input settings GUI
