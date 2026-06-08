@@ -1,0 +1,15 @@
+[Unit]
+Description=Configure Wacom Pen Tablet Buttons
+After=display-manager.service
+BindsTo=display-manager.service
+
+[Service]
+Type=oneshot
+User=YOUR_USERNAME
+Environment="DISPLAY=:0"
+Environment="XAUTHORITY=/home/YOUR_USERNAME/.Xauthority"
+ExecStart=/home/YOUR_USERNAME/path/to/wacom_config_advanced.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=graphical.target
