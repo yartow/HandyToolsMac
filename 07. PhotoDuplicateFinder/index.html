@@ -57,9 +57,15 @@
           <input id="config-drive-remote" type="text" spellcheck="false" placeholder="gdrive">
         </label>
         <label>
-          Folder path to scan <span class="label-hint">(leave blank to scan entire Drive)</span>
-          <input id="config-drive-path" type="text" spellcheck="false" placeholder="e.g. Photos/Camera Roll">
+          Folder to scan <span class="label-hint">(leave blank to scan entire Drive)</span>
+          <div class="folder-picker-row">
+            <input id="config-drive-path" type="text" spellcheck="false" placeholder="e.g. Photos/Camera Roll">
+            <button id="browse-folder-btn" class="btn-secondary">Browse…</button>
+          </div>
         </label>
+        <div class="cache-actions-row">
+          <button id="clear-thumb-cache-btn" class="btn-link">Clear thumbnail cache…</button>
+        </div>
       </div>
 
       <div class="config-section">
@@ -72,6 +78,10 @@
           Remote name
           <input id="config-photos-remote" type="text" spellcheck="false" placeholder="gphotos">
         </label>
+        <div id="catalog-info-row" class="catalog-info-row hidden">
+          <span id="catalog-info-text" class="catalog-info-text">—</span>
+          <button id="clear-catalog-btn" class="btn-link">Clear cache</button>
+        </div>
       </div>
 
       <div class="config-section">
@@ -109,6 +119,22 @@
     <div id="results-toolbar" class="toolbar">
       <button id="results-back-btn" class="icon-btn">← Back</button>
       <span id="results-summary" class="toolbar-title"></span>
+      <button id="verify-all-btn" class="btn-secondary btn-sm">Verify All</button>
+    </div>
+    <div id="results-filter" class="results-filter">
+      <span class="filter-label">Filter:</span>
+      <label class="filter-item">
+        Min score
+        <input id="filter-score" type="number" class="filter-score-input" min="0" max="100" placeholder="0">
+        <span class="filter-unit">%</span>
+      </label>
+      <label class="filter-item">
+        <input id="filter-same-name" type="checkbox">
+        Same filename
+      </label>
+      <button id="filter-apply-btn" class="btn-secondary btn-sm">Apply</button>
+      <button id="filter-clear-btn" class="btn-link btn-sm">Clear</button>
+      <span id="filter-count" class="filter-count"></span>
     </div>
     <div id="group-list"></div>
     <div id="delete-footer" class="hidden">
@@ -128,6 +154,64 @@
         <button id="delete-confirm-btn" class="btn-danger">Delete</button>
       </div>
     </div>
+  </div>
+
+  <!-- ── Folder browser modal ── -->
+  <div id="folder-modal" class="modal-overlay hidden">
+    <div class="modal-card folder-modal-card">
+      <h2>Choose Google Drive Folder</h2>
+      <div id="folder-breadcrumb" class="folder-breadcrumb"></div>
+      <div id="folder-items" class="folder-items">
+        <div class="folder-loading">Loading…</div>
+      </div>
+      <div class="modal-actions">
+        <button id="folder-cancel-btn" class="btn-secondary">Cancel</button>
+        <button id="folder-root-btn" class="btn-secondary">Scan Entire Drive</button>
+        <button id="folder-select-btn" class="btn-primary">Select This Folder</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Thumbnail cache modal ── -->
+  <div id="thumb-cache-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <h2>Clear Thumbnail Cache</h2>
+      <p class="modal-note">Thumbnails are downloaded to speed up future sessions. Clear by folder to free disk space.</p>
+      <div class="thumb-cache-folder-row">
+        <label class="thumb-cache-folder-label">
+          Drive folder <span class="label-hint">(leave blank to clear all)</span>
+          <div class="folder-picker-row">
+            <input id="thumb-cache-folder" type="text" spellcheck="false" placeholder="e.g. Photos/Camera Roll">
+            <button id="thumb-cache-browse-btn" class="btn-secondary">Browse…</button>
+          </div>
+        </label>
+      </div>
+      <div id="thumb-cache-info" class="thumb-cache-info"></div>
+      <div class="modal-actions">
+        <button id="thumb-cache-cancel-btn" class="btn-secondary">Cancel</button>
+        <button id="thumb-cache-confirm-btn" class="btn-danger">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Verify-all warning modal ── -->
+  <div id="verify-all-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <h2>Verify All Groups?</h2>
+      <p class="modal-note" id="verify-all-modal-msg"></p>
+      <div class="modal-actions">
+        <button id="verify-all-cancel-btn" class="btn-secondary">Cancel</button>
+        <button id="verify-all-partial-btn" class="btn-secondary">Verify first 20</button>
+        <button id="verify-all-confirm-btn" class="btn-primary">Verify All</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Lightbox ── -->
+  <div id="lightbox" class="modal-overlay hidden">
+    <button id="lightbox-close" class="lightbox-close">✕</button>
+    <img id="lightbox-img" src="" class="lightbox-img" alt="">
+    <div id="lightbox-caption" class="lightbox-caption"></div>
   </div>
 
   <script src="renderer.js"></script>

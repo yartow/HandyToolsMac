@@ -1,4 +1,4 @@
-# GDrive Browser
+# GDAY
 
 A WinDirStat-style folder size browser for Google Drive, built with Electron and powered by rclone.
 
