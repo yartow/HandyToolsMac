@@ -5,7 +5,14 @@
 # 7-day rolling archive in "90. Backups/", both under BACKUP_BASE.
 
 TYPINATOR_SETS="$HOME/Library/Application Support/Typinator/Sets"
-BACKUP_BASE="$HOME/Library/CloudStorage/GoogleDrive-yartow@gmail.com/My Drive/08. Software/01. OSX macOS/05. Typinator"
+
+# Auto-detect Google Drive mount regardless of which account is signed in
+GDRIVE_ROOT=$(ls -d "$HOME/Library/CloudStorage/GoogleDrive-"* 2>/dev/null | head -1)
+if [[ -z "$GDRIVE_ROOT" ]]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: No Google Drive mount found in ~/Library/CloudStorage/" >&2
+    exit 1
+fi
+BACKUP_BASE="$GDRIVE_ROOT/My Drive/08. Software/01. OSX macOS/05. Typinator"
 MAX_DAYS=7
 
 TODAY=$(date +%Y-%m-%d)
