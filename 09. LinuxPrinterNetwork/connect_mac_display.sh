@@ -16,7 +16,7 @@ inject_session_env() {
     while IFS= read -r line; do
         [[ "$line" == *=* ]] && export "$line"
     done < <(cat "/proc/$pid/environ" 2>/dev/null | tr '\0' '\n' \
-        | grep -E '^(WAYLAND_DISPLAY|XDG_RUNTIME_DIR|DBUS_SESSION_BUS_ADDRESS|DISPLAY)=')
+        | grep -E '^(WAYLAND_DISPLAY|XDG_RUNTIME_DIR|DBUS_SESSION_BUS_ADDRESS|DISPLAY|XAUTHORITY)=')
 }
 
 inject_session_env
@@ -29,7 +29,14 @@ if [[ -z "${DISPLAY:-}" ]]; then
     export DISPLAY
 fi
 
-echo "[INFO] WAYLAND=${WAYLAND_DISPLAY:-unset}  DISPLAY=${DISPLAY:-unset}"
+# If XAUTHORITY is missing, find Mutter's XWayland auth file
+# (GNOME/Mutter creates a temporary one at /run/user/$UID/.mutter-Xwaylandauth.*)
+if [[ -z "${XAUTHORITY:-}" ]]; then
+    XAUTHORITY=$(ls "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"/.mutter-Xwaylandauth.* 2>/dev/null | head -1)
+    export XAUTHORITY
+fi
+
+echo "[INFO] WAYLAND=${WAYLAND_DISPLAY:-unset}  DISPLAY=${DISPLAY:-unset}  XAUTHORITY=${XAUTHORITY:-unset}"
 
 # ── Wait for Mac VNC ───────────────────────────────────────────────────────────
 echo "[INFO] Waiting for Mac at $MAC_IP:$MAC_PORT..."
@@ -42,9 +49,21 @@ done
 # ── Connect ────────────────────────────────────────────────────────────────────
 # Full-screen, no scaling (1:1 pixels), starting at coordinate 0,0 so the
 # Mac's leftmost virtual display fills the Linux monitor exactly.
+PASSWD_FILE="$HOME/.vnc/mac_passwd"
+
+PASSWD_ARGS=()
+if [[ -f "$PASSWD_FILE" ]]; then
+    PASSWD_ARGS=(-PasswordFile "$PASSWD_FILE")
+else
+    echo "[INFO] No saved password — you will be prompted."
+    echo "[INFO] To save it, run once:  vncpasswd ~/.vnc/mac_passwd"
+fi
+
 exec vncviewer \
     -FullScreen \
     -FullColour \
     -RemoteResize=0 \
-    -MenuKey F12 \
+    -DotWhenNoCursor \
+    -MenuKey F8 \
+    "${PASSWD_ARGS[@]}" \
     "${MAC_IP}::${MAC_PORT}"
