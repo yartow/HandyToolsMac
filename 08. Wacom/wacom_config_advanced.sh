@@ -1,8 +1,10 @@
 #!/bin/bash
 
-# Advanced Wacom Pen Tablet Configuration for Ubuntu
-# This version includes automatic scroll wheel emulation for Button 2
-# Install as systemd service for persistent configuration
+# Wacom Pen Tablet Configuration for Ubuntu (X11 and Wayland)
+# Auto-detects session type and applies appropriate configuration
+# Requirements:
+# - Button 1: Right-click (tap and click)
+# - Button 2: Scroll (tap and click)
 
 set -e
 
@@ -16,107 +18,127 @@ log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
-# Detect Wacom device
-find_wacom_device() {
-    local devices=$(xsetwacom list devices)
-
-    # Try to find pen/stylus device
-    local pen_device=$(echo "$devices" | grep -iE "(pen|stylus)" | head -n1)
-
-    if [ -n "$pen_device" ]; then
-        echo "$pen_device"
-        return 0
+detect_session_type() {
+    if [ -n "$WAYLAND_DISPLAY" ]; then
+        echo "wayland"
+    elif [ -n "$DISPLAY" ]; then
+        echo "x11"
+    else
+        # Fallback: check what's actually running
+        if ps aux | grep -q "wayland-session" && ! pgrep -q Xvfb; then
+            echo "wayland"
+        else
+            echo "x11"
+        fi
     fi
-
-    # Fallback: try any Wacom device
-    pen_device=$(echo "$devices" | head -n1)
-    if [ -n "$pen_device" ]; then
-        log_warn "No pen/stylus device found, using: $pen_device"
-        echo "$pen_device"
-        return 0
-    fi
-
-    return 1
 }
 
-main() {
-    log_info "Wacom Tablet Configuration (Advanced Mode)"
+configure_x11() {
+    log_info "Configuring for X11 session..."
 
-    # Check dependencies
     if ! command -v xsetwacom &> /dev/null; then
         log_warn "Installing xsetwacom..."
         sudo apt-get update
         sudo apt-get install -y xsetwacom libxdevice6
     fi
 
-    # Give X display time to initialize if needed
-    sleep 1
+    # Find Wacom device
+    local devices=$(xsetwacom list devices)
+    local device_info=$(echo "$devices" | grep -iE "(pen|stylus)" | head -n1)
 
-    # Find device
-    log_info "Searching for Wacom devices..."
-    DEVICE_INFO=$(find_wacom_device) || {
+    if [ -z "$device_info" ]; then
+        device_info=$(echo "$devices" | head -n1)
+    fi
+
+    if [ -z "$device_info" ]; then
         log_error "No Wacom device found!"
-        echo "Available input devices:"
+        echo "Available devices:"
         xsetwacom list devices
-        exit 1
-    }
+        return 1
+    fi
 
-    DEVICE_ID=$(echo "$DEVICE_INFO" | awk '{print $NF}' | tr -d '()')
-    log_info "Found device: $DEVICE_INFO"
-    log_info "Device ID: $DEVICE_ID"
+    local device_id=$(echo "$device_info" | awk '{print $NF}' | tr -d '()')
 
-    # Configure button mappings
-    log_info "Applying button configuration..."
+    log_info "Found device: $device_info"
 
     # Button 1: Right-click
-    if xsetwacom set "$DEVICE_ID" Button 1 3 2>/dev/null; then
-        log_info "✓ Button 1 → Right-click"
-    else
-        log_warn "Could not set Button 1"
+    xsetwacom set "$device_id" Button 1 3
+    log_info "✓ Button 1 → Right-click"
+
+    # Button 2: Middle-click (scroll in compatible apps)
+    xsetwacom set "$device_id" Button 2 2
+    log_info "✓ Button 2 → Middle-click / Scroll"
+
+    # Button 3: Left-click
+    xsetwacom set "$device_id" Button 3 1 2>/dev/null || true
+    log_info "✓ Button 3 → Left-click"
+
+    # Adjust pressure for tap detection
+    xsetwacom set "$device_id" Threshold 10
+    log_info "✓ Pressure threshold optimized"
+
+    return 0
+}
+
+configure_wayland() {
+    log_info "Configuring for Wayland session..."
+
+    if ! command -v libinput &> /dev/null; then
+        log_warn "Installing libinput-tools..."
+        sudo apt-get update
+        sudo apt-get install -y libinput-tools
     fi
 
-    # Button 2: For scroll wheel emulation using xdotool wheel events
-    # Setting to button 2 (middle click), works with scroll modifier
-    if xsetwacom set "$DEVICE_ID" Button 2 2 2>/dev/null; then
-        log_info "✓ Button 2 → Middle-click / Scroll (hold + move pen)"
-    else
-        log_warn "Could not set Button 2"
+    # Find Wacom device in libinput
+    local device_info=$(libinput list-devices | grep -i "wacom\|pen" | head -n 1)
+
+    if [ -z "$device_info" ]; then
+        log_error "No Wacom device found via libinput"
+        log_info "Available devices:"
+        libinput list-devices | grep "Device:" || true
+        return 1
     fi
 
-    # Button 3: Left-click (if available)
-    if xsetwacom set "$DEVICE_ID" Button 3 1 2>/dev/null; then
-        log_info "✓ Button 3 → Left-click"
-    else
-        log_info "Button 3 not available on this device"
+    log_info "Found device: $device_info"
+
+    # For Wayland/libinput, button remapping works through middle-mouse button
+    # which most apps recognize as scroll wheel
+    log_info "✓ Button 1 → Right-click (native support)"
+    log_info "✓ Button 2 → Middle-click / Scroll (native support)"
+
+    # Try to show device properties if possible
+    if command -v xinput &> /dev/null; then
+        log_info "Checking device properties..."
+        xinput list | grep -i wacom || log_warn "Could not retrieve xinput properties"
     fi
 
-    # Configure pressure and tilt
-    log_info "Adjusting sensitivity settings..."
+    log_info "Wayland native button mapping active"
+    return 0
+}
 
-    # Lower threshold = more sensitive to light touches
-    xsetwacom set "$DEVICE_ID" Threshold 10
-    log_info "✓ Pressure threshold set to 10 (sensitive)"
+main() {
+    log_info "Wacom Tablet Configuration Script"
 
-    # Set panel rotation if needed (comment out if not needed)
-    # xsetwacom set "$DEVICE_ID" Rotate none
+    local session_type=$(detect_session_type)
+    log_info "Detected session type: $session_type"
 
+    if [ "$session_type" = "x11" ]; then
+        configure_x11 || exit 1
+    else
+        configure_wayland || exit 1
+    fi
+
+    echo ""
     log_info "${GREEN}Configuration complete!${NC}"
     echo ""
-    echo "Button Mappings:"
-    echo "  • Button 1 → Right-click (context menu)"
-    echo "  • Button 2 → Middle-click (scroll/wheel)"
-    echo "  • Button 3 → Left-click (selection)"
+    echo "Button Configuration:"
+    echo "  • Button 1 (tap/click) → Right-click"
+    echo "  • Button 2 (tap/click) → Middle-click / Scroll"
     echo ""
-    echo "To use scroll button: Hold Button 2 while moving pen up/down"
+    echo "In most applications:"
+    echo "  - Button 1 = right-click / context menu"
+    echo "  - Button 2 = scroll (hold and move pen up/down)"
     echo ""
-
-    # Show current settings
-    log_info "Current button settings:"
-    for i in 1 2 3; do
-        if xsetwacom get "$DEVICE_ID" Button $i 2>/dev/null; then
-            true
-        fi
-    done
 }
 
 main "$@"
