@@ -1,97 +1,162 @@
-# Brother DCP-L3550CDW — Linux Print Server + Windows Sharing
+# Linux Print Server + Network Display — 192.168.178.203
 
-Linux host: **192.168.178.203** (Ubuntu/Debian, GNOME Wayland)  
-Printer: **Brother DCP-L3550CDW** (network, WiFi/Ethernet)
+Linux host: **192.168.178.203** (Ubuntu/Debian, GNOME Wayland, user: andrewyong)  
+Mac host:   **192.168.178.77**  (macOS)  
+Printer:    **Brother DCP-L3550CDW** (network)
 
 ---
 
-## Step 1 — Run on the Linux machine
+## Part 1 — Brother Printer Setup
+
+See printer setup section below. Run `setup_brother_printer.sh` on the Linux machine.
+
+---
+
+## Part 2 — Three-Screen Setup (Mac → Linux monitor as extended display)
+
+**Goal:** MacBook screen + HDMI monitor + Linux machine's monitor = 3 screens on the Mac.
+
+**How it works:** BetterDisplay creates a virtual display on the Mac (free tier).  
+macOS Screen Sharing (VNC) serves it. Remmina on Linux shows it full-screen at 1:1 zoom.  
+The key trick: the virtual display is placed at the **far left** in macOS Display Arrangement  
+so it sits at coordinate (0,0) — Remmina starts at (0,0), sees exactly that display, nothing else.
+
+---
+
+### Step 1 — Mac: Create the virtual display in BetterDisplay
+
+BetterDisplay is already installed (`brew install --cask betterdisplay`).
+
+1. Open **BetterDisplay** from Applications (or Spotlight)
+2. In the menu bar icon → **Displays** → **Create virtual screen**
+3. Set resolution to match the Linux monitor (e.g. **1920×1080** or **2560×1440**)
+4. The virtual display now appears in macOS Display Settings as a real monitor
+
+---
+
+### Step 2 — Mac: Enable Screen Sharing (VNC)
+
+Run this in a terminal on the Mac:
 
 ```bash
-# SSH in or open a terminal on 192.168.178.203
-ssh andrewyong@192.168.178.203
+# Enable Screen Sharing
+sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.screensharing.plist
 
-# Clone / copy setup_brother_printer.sh to the machine, then:
-sudo bash setup_brother_printer.sh [PRINTER_IP]
+# Verify it's listening
+lsof -nP -iTCP:5900 -sTCP:LISTEN
 ```
 
-If you don't know the printer's IP, omit it — the script will scan for it.  
-To find the printer IP yourself first: **Brother printer LCD menu → Network → WLAN → IP Address**.
+Or manually: **System Settings → General → Sharing → Screen Sharing → ON**
 
-### What the script does
-| Step | Action |
-|------|--------|
-| 1 | Installs CUPS + Avahi |
-| 2 | Downloads & installs official Brother Linux driver |
-| 3 | Adds printer to CUPS via `socket://PRINTER_IP:9100` |
-| 4 | Opens CUPS to the whole `192.168.178.0/24` subnet |
-| 5 | Installs Samba so Windows sees it as a network share |
-| 6 | Opens UFW firewall ports 631, 445, 139, 137, 138 |
+Then set a VNC password:  
+**Screen Sharing → Computer Settings → "VNC viewers may control screen with password"**
 
 ---
 
-## Step 2 — Add printer on Windows (locked machine)
+### Step 3 — Mac: Arrange displays (CRITICAL)
 
-### Option A — IPP (no driver needed, recommended)
+1. **System Settings → Displays → Arrangement** (or click Arrange on the Displays page)
+2. You'll see all your displays as rectangles
+3. **Drag the BetterDisplay virtual display to the FAR LEFT** — it must be the leftmost
+4. Leave the MBP screen and HDMI monitor to its right
 
-Windows 10/11 has a built-in **IPP Class Driver** — no Brother driver install required.
+This puts the virtual display at macOS coordinate (0, 0). Remmina on Linux starts reading  
+from (0,0) at 1:1 zoom → sees exactly the virtual display.
 
-1. Settings → Bluetooth & devices → Printers & scanners
-2. **Add device** → wait a few seconds → **Add manually** (link at bottom)
-3. Choose **"Add a printer using an IP address or hostname"**
-4. Device type: **IPP Device**
-5. Hostname or IP:
-   ```
-   http://192.168.178.203:631/printers/Brother_DCP-L3550CDW
-   ```
-6. Windows auto-detects capabilities — no driver download needed
-
-Or try the PowerShell script (may work as standard user):
 ```
-Right-click add_printer_windows.ps1 → Run with PowerShell
+ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+ │   Virtual    │ │  MBP screen  │ │ HDMI monitor │
+ │ (Linux sees) │ │              │ │              │
+ └──────────────┘ └──────────────┘ └──────────────┘
+   x=0 (leftmost)    x=W1               x=W1+W2
 ```
-
-### Option B — SMB (if IPP is blocked by policy)
-
-1. Open File Explorer
-2. In the address bar type: `\\192.168.178.203`
-3. Double-click **Brother_DCP-L3550CDW**
-4. Windows installs automatically (may pull driver from Windows Update)
 
 ---
 
-## Verification
+### Step 4 — Linux: Install Remmina and connect
 
-**On Linux:**
+Copy the script to the Linux machine and run it:
+
 ```bash
-lpstat -p -d               # list printers and default
-lpq -P Brother_DCP-L3550CDW   # queue status
-echo "test" | lp -d Brother_DCP-L3550CDW   # test print
+# From the Mac terminal:
+scp setup_network_display_linux.sh andrewyong@192.168.178.203:~/
+
+# Pass your Linux monitor's actual resolution as argument (default: 1920x1080)
+ssh andrewyong@192.168.178.203 "bash ~/setup_network_display_linux.sh 1920x1080"
 ```
 
-**CUPS web UI** (from any browser on the subnet):
+Then on the Linux machine, launch the display:
+```bash
+bash ~/connect_mac_display.sh
 ```
-http://192.168.178.203:631
-```
+
+Or double-click **"Mac Virtual Display"** on the GNOME desktop.
 
 ---
 
-## Troubleshooting
+### Step 5 — Remmina: Enter VNC password and go full-screen
 
-| Problem | Fix |
-|---------|-----|
-| Printer not found during scan | Find IP on printer LCD: Menu → Network → WLAN → IP Address |
-| CUPS shows printer stopped | `sudo cupsenable Brother_DCP-L3550CDW` |
-| Windows "Access denied" on SMB | In `smb.conf`, confirm `guest ok = yes` and restart smbd |
-| Driver PPD not found | Re-run script; or manually run `sudo bash linux-brprinter-installer-* DCP-L3550CDW` |
-| Windows can't reach the IPP URL | Check UFW: `sudo ufw status` — port 631 should be ALLOW |
-| Print job stuck in queue | `cancel -a; sudo systemctl restart cups` |
+1. Remmina opens and prompts for the VNC password you set in Step 2
+2. Click the **fullscreen button** (or press `F11`)
+3. You should see the Mac's virtual display filling the Linux monitor
+
+**If you see all three Mac displays instead of just the virtual one:**  
+→ The virtual display is not leftmost. Go back to Step 3 and move it left.
+
+---
+
+### Keyboard shortcut: toggle full-screen in Remmina
+
+| Action | Shortcut |
+|--------|----------|
+| Toggle fullscreen | `Ctrl+Shift+F` or `F11` |
+| Grab/release keyboard | `Ctrl+Shift+G` |
+| Disconnect | `Ctrl+Shift+W` |
+
+---
+
+### Re-connecting after reboot
+
+On the Mac: Screen Sharing persists after reboot (it's a LaunchDaemon).  
+On Linux: just run `bash ~/connect_mac_display.sh` again.
+
+---
+
+### Latency notes
+
+Over a 1Gbps home LAN (wired): ~20–50ms — fine for productivity  
+Over WiFi (5GHz): ~50–150ms — usable  
+For better performance in Remmina: set **Quality → Best (LAN)** in the profile
+
+---
+
+## Part 3 — Brother DCP-L3550CDW Printer Setup
+
+### Linux (print server)
+
+```bash
+scp setup_brother_printer.sh andrewyong@192.168.178.203:~/
+ssh andrewyong@192.168.178.203 "sudo bash ~/setup_brother_printer.sh 192.168.178.XXX"
+```
+
+Replace `XXX` with the printer's IP (check on printer LCD: Menu → Network → WLAN → IP Address).
+
+### Windows (wife's locked machine) — no driver install needed
+
+| Method | Address |
+|--------|---------|
+| IPP (recommended) | `http://192.168.178.203:631/printers/Brother_DCP-L3550CDW` |
+| SMB | `\\192.168.178.203\Brother_DCP-L3550CDW` |
+
+Add via: Settings → Printers → Add device → Add manually → IPP Device → paste URL above.
 
 ---
 
 ## Files
 
-| File | Purpose |
-|------|---------|
-| `setup_brother_printer.sh` | Run on Linux to install driver + configure CUPS + Samba |
-| `add_printer_windows.ps1` | Run on Windows to add the IPP printer automatically |
+| File | Where to run | Purpose |
+|------|-------------|---------|
+| `setup_brother_printer.sh` | Linux machine | Install driver, configure CUPS + Samba |
+| `setup_network_display_linux.sh` | Linux machine | Install Remmina, create VNC profile |
+| `setup_mac_screen_share.sh` | Mac (optional) | Enable VNC from terminal |
+| `add_printer_windows.ps1` | Windows machine | Add IPP printer automatically |

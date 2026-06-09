@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Mac Virtual Display
+Comment=Auto-connect to MacBook extended display on login
+Exec=/home/andrewyong/connect_mac_display.sh
+Icon=preferences-desktop-display
+Terminal=false
+Hidden=false
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=8
