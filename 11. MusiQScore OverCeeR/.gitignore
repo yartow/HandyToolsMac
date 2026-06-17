@@ -4,3 +4,5 @@ output/
 __pycache__/
 *.pyc
 .DS_Store
+output/
+example files/
