@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+anthropic
+google-api-python-client
+google-auth
+python-multipart
+pillow
