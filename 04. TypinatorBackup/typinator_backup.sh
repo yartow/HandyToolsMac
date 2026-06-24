@@ -57,6 +57,36 @@ done
 date +%s > "$LAST_RUN_FILE"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Backup complete: $COPIED set(s) copied, $SKIPPED unchanged." >> "$LOG_FILE"
 
+# ----- IMPORT (Drive → local) -----
+TYPINATOR_WAS_RUNNING=false
+if pgrep -xq "Typinator"; then
+    TYPINATOR_WAS_RUNNING=true
+    osascript -e 'tell application "Typinator" to quit'
+    for i in {1..10}; do
+        pgrep -xq "Typinator" || break
+        sleep 1
+    done
+fi
+
+IMPORTED=0
+for drive_file in "$CURRENT_DIR"/*.tyset; do
+    [[ -d "$drive_file" ]] || continue
+    name=$(basename "$drive_file")
+    local_file="$TYPINATOR_SETS/$name"
+    drive_mod=$(stat -f %m "$drive_file")
+    local_mod=0
+    [[ -e "$local_file" ]] && local_mod=$(stat -f %m "$local_file")
+    if (( drive_mod > local_mod )); then
+        rm -rf "$local_file"
+        cp -rp "$drive_file" "$local_file"
+        echo "[$(date '+%H:%M:%S')] Imported: $name" >> "$LOG_FILE"
+        (( IMPORTED++ ))
+    fi
+done
+
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Import complete: $IMPORTED set(s) imported." >> "$LOG_FILE"
+$TYPINATOR_WAS_RUNNING && open -a Typinator
+
 # Remove archive folders older than MAX_DAYS
 while IFS= read -r -d '' old_dir; do
     rm -rf "$old_dir"
