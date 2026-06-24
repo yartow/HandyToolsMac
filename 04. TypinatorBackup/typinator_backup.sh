@@ -16,10 +16,10 @@ BACKUP_BASE="$GDRIVE_ROOT/My Drive/08. Software/01. OSX macOS/05. Typinator"
 MAX_DAYS=7
 
 TODAY=$(date +%Y-%m-%d)
-LAST_RUN_FILE="$BACKUP_BASE/.last_run"
+# Per-machine file so two Macs don't corrupt each other's detection window
+MACHINE=$(scutil --get LocalHostName 2>/dev/null || hostname -s)
+LAST_RUN_FILE="$BACKUP_BASE/.last_run_${MACHINE}"
 
-# Compare against last backup run, not midnight — so edits made before a
-# missed 5 PM run are still caught on the next login.
 if [[ -f "$LAST_RUN_FILE" ]]; then
     SINCE_EPOCH=$(cat "$LAST_RUN_FILE")
 else
@@ -40,7 +40,9 @@ for file in "$TYPINATOR_SETS"/*.tyset; do
     [[ -d "$file" ]] || continue
     name=$(basename "$file")
     mod_epoch=$(stat -f %m "$file")
-    if (( mod_epoch > SINCE_EPOCH )); then
+    dest_epoch=0
+    [[ -e "$CURRENT_DIR/$name" ]] && dest_epoch=$(stat -f %m "$CURRENT_DIR/$name")
+    if (( mod_epoch > SINCE_EPOCH && mod_epoch > dest_epoch )); then
         rm -rf "$CURRENT_DIR/$name"
         cp -rp "$file" "$CURRENT_DIR/$name"
         rm -rf "$ARCHIVE_DIR/$name"
