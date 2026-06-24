@@ -1,0 +1,8 @@
+# Sheet Music Tuner — saved parameters
+bleed_blur = 31
+bleed_strength = 7
+sharp_strength = 6
+thresh_block = 19
+thresh_c = 16
+morph_close = 0
+deskew = 1
