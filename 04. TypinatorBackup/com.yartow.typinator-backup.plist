@@ -8,8 +8,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>-c</string>
-        <string>exec "$HOME/Documents/GitHub/HandyToolsMac/04. TypinatorBackup/typinator_backup.sh"</string>
+        <string>/Users/andrewyong/Documents/GitHub/HandyToolsMac/04. TypinatorBackup/typinator_backup.sh</string>
     </array>
 
     <key>StartCalendarInterval</key>
@@ -27,6 +26,6 @@
     <string>/tmp/typinator-backup.err</string>
 
     <key>RunAtLoad</key>
-    <false/>
+    <true/>
 </dict>
 </plist>
