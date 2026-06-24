@@ -1,0 +1,14 @@
+services:
+  musiqscore:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./output:/app/output
+      - ./credentials.json:/app/credentials.json:ro
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GOOGLE_DRIVE_FOLDER_ID=${GOOGLE_DRIVE_FOLDER_ID:-}
+      - GOOGLE_CREDENTIALS_JSON=/app/credentials.json
+    restart: unless-stopped

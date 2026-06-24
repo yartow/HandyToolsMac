@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MusiQScore OverCeeR</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f0f14;
+      color: #e8e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+    header h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+    header p {
+      color: #888;
+      margin-top: 0.4rem;
+      font-size: 0.9rem;
+    }
+
+    .card {
+      background: #1a1a24;
+      border: 1px solid #2a2a38;
+      border-radius: 12px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 480px;
+    }
+
+    .field {
+      margin-bottom: 1.25rem;
+    }
+    .field label {
+      display: block;
+      font-size: 0.82rem;
+      color: #888;
+      margin-bottom: 0.35rem;
+      letter-spacing: 0.03em;
+    }
+    .field input[type="text"] {
+      width: 100%;
+      padding: 0.6rem 0.8rem;
+      background: #13131c;
+      border: 1px solid #2a2a38;
+      border-radius: 6px;
+      color: #e8e8f0;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .field input[type="text"]:focus { border-color: #7c6aff; }
+    .field input[type="text"]::placeholder { color: #444; }
+
+    .drop-zone {
+      border: 2px dashed #3a3a52;
+      border-radius: 8px;
+      padding: 2.5rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: #7c6aff;
+      background: #1f1f2e;
+    }
+    .drop-zone .icon { font-size: 2.5rem; margin-bottom: 0.6rem; }
+    .drop-zone p { color: #888; font-size: 0.9rem; }
+    .drop-zone strong { color: #c8c8e0; }
+
+    #file-input { display: none; }
+
+    #file-name {
+      margin-top: 0.75rem;
+      font-size: 0.85rem;
+      color: #7c6aff;
+      min-height: 1.2em;
+      text-align: center;
+    }
+
+    button#upload-btn {
+      margin-top: 1.25rem;
+      width: 100%;
+      padding: 0.85rem;
+      background: #7c6aff;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button#upload-btn:hover:not(:disabled) { background: #6a58e8; }
+    button#upload-btn:disabled { background: #3a3a52; cursor: not-allowed; }
+
+    #progress {
+      display: none;
+      margin-top: 1.25rem;
+      text-align: center;
+    }
+    .spinner {
+      display: inline-block;
+      width: 28px; height: 28px;
+      border: 3px solid #2a2a38;
+      border-top-color: #7c6aff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 0.5rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #progress p { font-size: 0.9rem; color: #888; }
+
+    #result {
+      display: none;
+      margin-top: 1.5rem;
+    }
+    #result h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #a8ffa8;
+      margin-bottom: 0.75rem;
+    }
+    #result .links { display: flex; flex-direction: column; gap: 0.5rem; }
+    #result a {
+      display: block;
+      padding: 0.7rem 1rem;
+      background: #22223a;
+      border: 1px solid #2a2a42;
+      border-radius: 6px;
+      color: #9dacff;
+      text-decoration: none;
+      font-size: 0.9rem;
+      transition: background 0.15s;
+    }
+    #result a:hover { background: #2a2a4a; }
+    #result .warning {
+      margin-top: 0.75rem;
+      padding: 0.6rem 0.8rem;
+      background: #2e2010;
+      border: 1px solid #6e4a00;
+      border-radius: 6px;
+      color: #ffb84d;
+      font-size: 0.82rem;
+    }
+
+    #error {
+      display: none;
+      margin-top: 1.25rem;
+      padding: 0.75rem 1rem;
+      background: #2e1010;
+      border: 1px solid #6e2020;
+      border-radius: 6px;
+      color: #ff8080;
+      font-size: 0.88rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>MusiQScore OverCeeR</h1>
+    <p>Photograph a lead sheet &rarr; get LilyPond + PDF</p>
+  </header>
+
+  <div class="card">
+    <div class="field">
+      <label for="series-name">Series name <span style="color:#555">(optional — e.g. OTH)</span></label>
+      <input type="text" id="series-name" placeholder="e.g. OTH" maxlength="30" autocomplete="off" />
+    </div>
+
+    <div class="drop-zone" id="drop-zone">
+      <div class="icon">🎵</div>
+      <p><strong>Tap to choose a photo</strong></p>
+      <p>or drag &amp; drop here</p>
+      <p style="margin-top:0.4rem;font-size:0.78rem;">JPG, PNG, HEIC accepted</p>
+    </div>
+    <input type="file" id="file-input" accept="image/*,.heic,.heif" />
+    <div id="file-name"></div>
+
+    <button id="upload-btn" disabled>Transcribe</button>
+
+    <div id="progress">
+      <div class="spinner"></div>
+      <p>Sending to Claude...</p>
+    </div>
+
+    <div id="result">
+      <h2>Done!</h2>
+      <div class="links" id="links"></div>
+      <div class="warning" id="warning" style="display:none"></div>
+    </div>
+
+    <div id="error"></div>
+  </div>
+
+  <script>
+    const dropZone = document.getElementById("drop-zone");
+    const fileInput = document.getElementById("file-input");
+    const fileNameEl = document.getElementById("file-name");
+    const uploadBtn = document.getElementById("upload-btn");
+    const progress = document.getElementById("progress");
+    const resultEl = document.getElementById("result");
+    const linksEl = document.getElementById("links");
+    const warningEl = document.getElementById("warning");
+    const errorEl = document.getElementById("error");
+
+    let selectedFile = null;
+
+    dropZone.addEventListener("click", () => fileInput.click());
+    dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("drag-over"); });
+    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
+    dropZone.addEventListener("drop", e => {
+      e.preventDefault();
+      dropZone.classList.remove("drag-over");
+      if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener("change", () => { if (fileInput.files[0]) setFile(fileInput.files[0]); });
+
+    function setFile(f) {
+      selectedFile = f;
+      fileNameEl.textContent = f.name;
+      uploadBtn.disabled = false;
+      resultEl.style.display = "none";
+      errorEl.style.display = "none";
+    }
+
+    uploadBtn.addEventListener("click", async () => {
+      if (!selectedFile) return;
+
+      uploadBtn.disabled = true;
+      progress.style.display = "block";
+      resultEl.style.display = "none";
+      errorEl.style.display = "none";
+
+      const form = new FormData();
+      form.append("file", selectedFile);
+      form.append("series_name", document.getElementById("series-name").value.trim());
+
+      try {
+        const res = await fetch("/transcribe", { method: "POST", body: form });
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.detail || `Server error ${res.status}`);
+        }
+
+        linksEl.innerHTML = "";
+
+        if (data.ly_url) {
+          linksEl.innerHTML += `<a href="${data.ly_url}" download>Download .ly (LilyPond source)</a>`;
+        }
+        if (data.pdf_url) {
+          linksEl.innerHTML += `<a href="${data.pdf_url}" download>Download PDF</a>`;
+        }
+        if (data.gdrive_ly) {
+          linksEl.innerHTML += `<a href="${data.gdrive_ly}" target="_blank" rel="noopener">Open .ly on Google Drive</a>`;
+        }
+        if (data.gdrive_pdf) {
+          linksEl.innerHTML += `<a href="${data.gdrive_pdf}" target="_blank" rel="noopener">Open PDF on Google Drive</a>`;
+        }
+
+        if (data.warning) {
+          warningEl.textContent = "Warning: " + data.warning;
+          warningEl.style.display = "block";
+        } else {
+          warningEl.style.display = "none";
+        }
+
+        resultEl.style.display = "block";
+      } catch (err) {
+        errorEl.textContent = "Error: " + err.message;
+        errorEl.style.display = "block";
+      } finally {
+        progress.style.display = "none";
+        uploadBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
