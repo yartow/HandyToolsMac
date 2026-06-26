@@ -14,15 +14,20 @@ pip install requests beautifulsoup4 tqdm
 python3 mangafreak_download.py URL [--list] [--chapters RANGE] [--delay SECS] [--debug]
 ```
 
-Pass the URL of **any** chapter of the series — the script derives the series slug and chapter number from it automatically.
+Pass either the **series page URL** (recommended) or any **chapter URL**:
+
+- Series page: `https://ww2.mangafreak.me/Manga/Mf_Ghost`
+- Chapter URL: `https://ww2.mangafreak.me/Read1_Mf_Ghost_7`
+
+The series page URL is the simpler form — the script fetches the full chapter list from it so it always knows exactly how many chapters exist.
 
 ### Arguments
 
 | Argument | Description |
 |---|---|
-| `URL` | URL of any chapter (e.g. `.../Read1_Mf_Ghost_1`) |
+| `URL` | Series page (`.../Manga/Name`) or any chapter URL (`.../Read1_Name_N`) |
 | `--list` | List all chapter numbers and titles, then exit |
-| `--chapters RANGE` | Chapter range to download (default: the chapter in the URL) |
+| `--chapters RANGE` | Chapter range to download (default: all for series URL; single chapter for chapter URL) |
 | `--delay SECS` | Seconds to wait between chapters (default: `1`) |
 | `--debug` | Dump all `<img>` tags found on the page and exit |
 
@@ -30,45 +35,45 @@ Pass the URL of **any** chapter of the series — the script derives the series 
 
 | Format | Downloads |
 |---|---|
-| _(omitted)_ | Only the chapter in the URL |
+| _(omitted)_ | All chapters (series URL) or the single chapter in the URL (chapter URL) |
 | `5` | Chapter 5 only |
 | `1-10` | Chapters 1 through 10 |
-| `all` | Every chapter, stopping at the first 404 |
+| `all` | Every chapter (uses the chapter list to determine the exact end) |
 
 ---
 
 ## Examples
 
-**List all chapters with titles:**
+**Download everything (preferred):**
 ```bash
-python3 mangafreak_download.py https://ww2.mangafreak.me/Read1_Mf_Ghost_1 --list
+python3 mangafreak_download.py https://ww2.mangafreak.me/Manga/Mf_Ghost
 ```
 
-**Download a single chapter:**
+**List all chapters with titles:**
 ```bash
-python3 mangafreak_download.py https://ww2.mangafreak.me/Read1_Mf_Ghost_1
+python3 mangafreak_download.py https://ww2.mangafreak.me/Manga/Mf_Ghost --list
 ```
 
 **Download a range:**
 ```bash
-python3 mangafreak_download.py https://ww2.mangafreak.me/Read1_Mf_Ghost_1 --chapters 1-10
+python3 mangafreak_download.py https://ww2.mangafreak.me/Manga/Mf_Ghost --chapters 1-10
 ```
 
-**Download everything:**
+**Download a single chapter (chapter URL form):**
 ```bash
-python3 mangafreak_download.py https://ww2.mangafreak.me/Read1_Mf_Ghost_1 --chapters all
+python3 mangafreak_download.py https://ww2.mangafreak.me/Read1_Mf_Ghost_7
 ```
 
 **Slow down requests to avoid rate limiting:**
 ```bash
-python3 mangafreak_download.py https://ww2.mangafreak.me/Read1_Mf_Ghost_1 --chapters all --delay 3
+python3 mangafreak_download.py https://ww2.mangafreak.me/Manga/Mf_Ghost --delay 3
 ```
 
 ---
 
 ## Listing chapters
 
-`--list` fetches and displays all available chapter numbers and titles before any download:
+`--list` fetches and displays all available chapter numbers and titles:
 
 ```
 Fetching chapter list…
@@ -84,10 +89,10 @@ Ch.47     Final Lap
 47 chapter(s) total.
 ```
 
-It tries three strategies in order to find the chapter list:
-1. **Series index page** — derives the manga page URL from the slug (e.g. `/Manga/Mf_Ghost`) and scrapes the chapter list there
-2. **Chapter select dropdown** — falls back to the reader page and reads a `<select>` dropdown if one exists
-3. **Link scan** — scans any chapter-shaped links on the reader page itself
+The chapter list is fetched via three strategies in order:
+1. **Series index page** — scrapes the `/Manga/Name` page directly
+2. **Chapter select dropdown** — reads a `<select>` dropdown on the reader page
+3. **Link scan** — scans any chapter-shaped links on the reader page
 
 You can combine `--list` with `--debug` to see which strategy matched and which URLs were tried.
 
