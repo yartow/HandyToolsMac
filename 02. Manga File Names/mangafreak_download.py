@@ -5,9 +5,11 @@ MangaFreak chapter downloader
 Downloads all page images for one or more chapters and saves them as CBZ files.
 
 Usage:
+  python3 mangafreak_download.py https://ww2.mangafreak.me/Manga/Mf_Ghost
+  python3 mangafreak_download.py https://ww2.mangafreak.me/Manga/Mf_Ghost --chapters 1-10
+  python3 mangafreak_download.py https://ww2.mangafreak.me/Manga/Mf_Ghost --list
   python3 mangafreak_download.py https://ww2.mangafreak.me/Read1_Mf_Ghost_1
   python3 mangafreak_download.py https://ww2.mangafreak.me/Read1_Mf_Ghost_1 --chapters 1-10
-  python3 mangafreak_download.py https://ww2.mangafreak.me/Read1_Mf_Ghost_1 --list
   python3 mangafreak_download.py https://ww2.mangafreak.me/Read1_Mf_Ghost_1 --debug
 """
 
@@ -41,26 +43,32 @@ session.headers.update(HEADERS)
 # URL helpers
 # ---------------------------------------------------------------------------
 
-def parse_chapter_url(url: str):
+def classify_url(url: str) -> tuple[str, str, str, int | None]:
     """
-    Extract (base_prefix, series_slug, chapter_number) from a URL like
-    https://ww2.mangafreak.me/Read1_Mf_Ghost_7
-    Returns (origin, 'Read1_Mf_Ghost', 7)
+    Parse any MangaFreak URL.
+
+    Returns (url_type, origin, name, chapter_or_None) where url_type is
+    "series"  for /Manga/SeriesName  (chapter=None)
+    "chapter" for /Read1_Slug_N      (chapter=N)
     """
     parsed = urlparse(url)
     origin = f"{parsed.scheme}://{parsed.netloc}"
     path = parsed.path.strip("/")
 
-    # Last token separated by _ is expected to be the chapter number
-    match = re.match(r"^(.+?)_(\d+)$", path)
-    if not match:
-        raise ValueError(
-            f"Cannot parse chapter number from URL: {url}\n"
-            "Expected pattern like /Read1_Mf_Ghost_1"
-        )
-    slug = match.group(1)
-    chapter = int(match.group(2))
-    return origin, slug, chapter
+    m = re.fullmatch(r"(?i)Manga/([^/]+)", path)
+    if m:
+        return "series", origin, m.group(1), None
+
+    match = re.fullmatch(r"(Read\d+_.+?)_(\d+)", path)
+    if match:
+        return "chapter", origin, match.group(1), int(match.group(2))
+
+    raise ValueError(
+        f"Cannot parse URL: {url}\n"
+        "Accepted forms:\n"
+        "  Series page : https://ww2.mangafreak.me/Manga/Mf_Ghost\n"
+        "  Chapter page: https://ww2.mangafreak.me/Read1_Mf_Ghost_1"
+    )
 
 
 def build_chapter_url(origin: str, slug: str, chapter: int) -> str:
@@ -323,6 +331,15 @@ def _parse_from_select(soup: BeautifulSoup) -> list[ChapterEntry]:
     return []
 
 
+def _discover_slug(soup: BeautifulSoup) -> str | None:
+    """Scan chapter links on a series page to find the Read1_Slug style slug."""
+    for a in soup.find_all("a", href=True):
+        m = re.search(r"(Read\d+_[^/]+?)_\d+/?$", a["href"])
+        if m:
+            return m.group(1)
+    return None
+
+
 def fetch_chapter_list(origin: str, slug: str, debug: bool = False) -> list[ChapterEntry]:
     """
     Return all (chapter_number, title) pairs for the series.
@@ -374,18 +391,13 @@ def fetch_chapter_list(origin: str, slug: str, debug: bool = False) -> list[Chap
     return []
 
 
-def cmd_list(origin: str, slug: str, debug: bool):
-    """Print all chapters with numbers and titles."""
-    print("Fetching chapter list…")
-    chapters = fetch_chapter_list(origin, slug, debug=debug)
-
+def _print_chapter_list(chapters: list[ChapterEntry]) -> None:
     if not chapters:
         print(
             "No chapters found. The site may use JavaScript rendering.\n"
             "Try --debug to inspect the raw page."
         )
         return
-
     width = max(len(c[0]) for c in chapters)
     print(f"\n{'#':<{width + 2}}  Title")
     print("─" * 50)
@@ -416,14 +428,18 @@ def parse_args():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s https://ww2.mangafreak.me/Read1_Mf_Ghost_1 --list
-  %(prog)s https://ww2.mangafreak.me/Read1_Mf_Ghost_1
+  %(prog)s https://ww2.mangafreak.me/Manga/Mf_Ghost              # download all
+  %(prog)s https://ww2.mangafreak.me/Manga/Mf_Ghost --list
+  %(prog)s https://ww2.mangafreak.me/Manga/Mf_Ghost --chapters 1-10
+  %(prog)s https://ww2.mangafreak.me/Read1_Mf_Ghost_1            # single chapter
   %(prog)s https://ww2.mangafreak.me/Read1_Mf_Ghost_1 --chapters 1-10
-  %(prog)s https://ww2.mangafreak.me/Read1_Mf_Ghost_5 --chapters all
   %(prog)s https://ww2.mangafreak.me/Read1_Mf_Ghost_1 --debug
         """,
     )
-    parser.add_argument("url", help="URL of any chapter (e.g. .../Read1_Mf_Ghost_1)")
+    parser.add_argument(
+        "url",
+        help="Series page (.../Manga/Name) or any chapter (.../Read1_Name_1)",
+    )
     parser.add_argument(
         "--list",
         action="store_true",
@@ -433,7 +449,7 @@ Examples:
         "--chapters",
         metavar="RANGE",
         default=None,
-        help="Chapter range: 1-10, 5, all (default: just the chapter in the URL)",
+        help="Chapter range: 1-10, 5, all (default: all for series URL, single chapter for chapter URL)",
     )
     parser.add_argument(
         "--debug",
@@ -450,54 +466,82 @@ Examples:
     return parser.parse_args()
 
 
-def main():
+def main() -> None:
     args = parse_args()
 
     try:
-        origin, slug, start_chapter = parse_chapter_url(args.url)
+        url_type, origin, name, start_chapter = classify_url(args.url)
     except ValueError as e:
         print(f"Error: {e}")
         sys.exit(1)
 
-    series_name = slug.split("/")[-1]  # e.g. Read1_Mf_Ghost
-    out_dir = Path.cwd() / series_name
+    chapters_list: list[ChapterEntry] | None = None
+    slug: str
+
+    if url_type == "series":
+        try:
+            soup = fetch_page_html(args.url)
+        except Exception as e:
+            print(f"Error fetching series page: {e}")
+            sys.exit(1)
+        slug = _discover_slug(soup) or f"Read1_{name}"
+        chapters_list = fetch_chapter_list(origin, slug, debug=args.debug)
+        if not chapters_list and not args.list and not args.debug:
+            print("No chapters found. Try --debug to inspect the page.")
+            sys.exit(1)
+        start_chapter = int(float(chapters_list[0][0])) if chapters_list else 1
+    else:
+        slug = name
+
+    out_dir = Path.cwd() / slug
     out_dir.mkdir(exist_ok=True)
 
-    # List mode: print all chapters and exit
+    # List mode
     if args.list:
-        cmd_list(origin, slug, debug=args.debug)
+        if chapters_list is None:
+            print("Fetching chapter list…")
+            chapters_list = fetch_chapter_list(origin, slug, debug=args.debug)
+        _print_chapter_list(chapters_list)
         sys.exit(0)
 
     # Debug mode: inspect first page only, then exit
     if args.debug:
-        print(f"Fetching {args.url} ...")
-        soup = fetch_page_html(args.url)
-        find_images(soup, args.url, debug=True)
+        target = args.url if url_type == "series" else build_chapter_url(origin, slug, start_chapter)
+        print(f"Fetching {target} ...")
+        soup = fetch_page_html(target)
+        find_images(soup, target, debug=True)
         sys.exit(0)
 
-    # Determine which chapters to download
-    if args.chapters is None:
-        chapters = range(start_chapter, start_chapter + 1)
-        download_all = False
-    elif args.chapters.strip().lower() == "all":
-        chapters = None
-        download_all = True
-    else:
-        chapters = parse_chapter_range(args.chapters, start_chapter)
-        download_all = False
+    # Series URL or --chapters all → use the chapter list so we know the definite end
+    use_list = (url_type == "series") or (
+        args.chapters is not None and args.chapters.strip().lower() == "all"
+    )
 
-    if download_all:
-        # Iterate from start_chapter until we hit a 404 / no images
-        chapter = start_chapter
-        while True:
-            ok = download_chapter(origin, slug, chapter, out_dir, debug=False)
-            if not ok:
-                print(f"\nStopped at chapter {chapter}.")
-                break
-            chapter += 1
+    if use_list:
+        if chapters_list is None:
+            print("Fetching chapter list…")
+            chapters_list = fetch_chapter_list(origin, slug, debug=args.debug)
+        if not chapters_list:
+            print("Could not build chapter list. Try specifying a range with --chapters 1-N.")
+            sys.exit(1)
+
+        if args.chapters and args.chapters.strip().lower() != "all":
+            allowed: set[int] | None = set(parse_chapter_range(args.chapters, start_chapter))
+        else:
+            allowed = None
+
+        for num_str, _ in chapters_list:
+            num = int(float(num_str))
+            if allowed is not None and num not in allowed:
+                continue
+            download_chapter(origin, slug, num, out_dir, debug=False)
             time.sleep(args.delay)
     else:
-        for chapter in chapters:
+        if args.chapters is None:
+            chapter_iter: range = range(start_chapter, start_chapter + 1)
+        else:
+            chapter_iter = parse_chapter_range(args.chapters, start_chapter)
+        for chapter in chapter_iter:
             download_chapter(origin, slug, chapter, out_dir, debug=False)
             time.sleep(args.delay)
 
