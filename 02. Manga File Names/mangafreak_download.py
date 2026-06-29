@@ -55,11 +55,11 @@ def classify_url(url: str) -> tuple[str, str, str, int | None]:
     origin = f"{parsed.scheme}://{parsed.netloc}"
     path = parsed.path.strip("/")
 
-    if re.match(r"(?i)Manga/", path):
-        series_part = path.split("/", 1)[1]
-        return "series", origin, series_part, None
+    m = re.fullmatch(r"(?i)Manga/([^/]+)", path)
+    if m:
+        return "series", origin, m.group(1), None
 
-    match = re.match(r"^(.+?)_(\d+)$", path)
+    match = re.fullmatch(r"(Read\d+_.+?)_(\d+)", path)
     if match:
         return "chapter", origin, match.group(1), int(match.group(2))
 
@@ -391,7 +391,7 @@ def fetch_chapter_list(origin: str, slug: str, debug: bool = False) -> list[Chap
     return []
 
 
-def _print_chapter_list(chapters: list[ChapterEntry]):
+def _print_chapter_list(chapters: list[ChapterEntry]) -> None:
     if not chapters:
         print(
             "No chapters found. The site may use JavaScript rendering.\n"
@@ -466,7 +466,7 @@ Examples:
     return parser.parse_args()
 
 
-def main():
+def main() -> None:
     args = parse_args()
 
     try:
@@ -485,9 +485,9 @@ def main():
             print(f"Error fetching series page: {e}")
             sys.exit(1)
         slug = _discover_slug(soup) or f"Read1_{name}"
-        chapters_list = _parse_from_series_page(soup, origin)
+        chapters_list = fetch_chapter_list(origin, slug, debug=args.debug)
         if not chapters_list and not args.list and not args.debug:
-            print("No chapters found on series page. Try --debug to inspect the page.")
+            print("No chapters found. Try --debug to inspect the page.")
             sys.exit(1)
         start_chapter = int(float(chapters_list[0][0])) if chapters_list else 1
     else:
