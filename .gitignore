@@ -8,3 +8,6 @@ __pycache__/
 *.png
 *$*
 *.xlsx
+.env
+*.env
+credentials.json

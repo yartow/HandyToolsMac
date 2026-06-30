@@ -59,9 +59,21 @@ bash ~/Documents/GitHub/HandyToolsMac/04.\ TypinatorBackup/typinator_backup.sh
 
 Check `05. Typinator/backup.log` afterwards to see what was copied.
 
+## Import behaviour (Drive → local)
+
+After the backup phase, the script also pulls sets down from Drive if the Drive copy is newer than the local one. Only sets that are **currently active (enabled) in Typinator** are imported — inactive sets are never touched.
+
+Before importing a set, the script removes it from Typinator's internal registry (via AppleScript) and then quits Typinator, copies the file, and restarts. This prevents Typinator from seeing both the old and new copy of the set and showing it twice.
+
+If Typinator is not running when the script fires, the import phase is skipped entirely (the active-set list cannot be determined safely).
+
 ## Multi-Mac behaviour
 
-Each Mac runs its own backup independently at 17:00. Both push only files that were modified **on that machine today**, using the file's last-modified timestamp as recorded by Typinator. If you edited a set on Mac A, only Mac A will upload it. There is no merge conflict — whichever machine last touched a set owns that day's backup of it.
+Each Mac runs its own backup independently at 17:00. Multiple Macs can share the same Drive folder without conflicting:
+
+- **Backup** — each machine only uploads sets modified on *that* machine since the last run, tracked via a per-machine marker file (`.last_run_<hostname>`) in the Drive folder. Two Macs never overwrite each other's marker.
+- **Import** — each machine independently compares Drive timestamps against its own local files and only pulls what is newer. There is no locking or coordination needed.
+- **Archive** — dated snapshots under `90. Backups/` are written by whichever machine ran last and do not conflict because the folder name is the date.
 
 ## Changing the schedule
 
