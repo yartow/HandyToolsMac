@@ -1,3 +1,14 @@
+# 02. Manga File Names
+
+Download tools for manga sites — each script is self-contained.
+
+| Tool | Script | Documentation |
+|---|---|---|
+| MangaDex | [mangadex_bulk_download.py](mangadex_bulk_download.py) | See below |
+| MangaFreak | [mangafreak_download.py](mangafreak_download.py) | [readme mangafreak.md](<readme%20mangafreak.md>) |
+
+---
+
 # MangaDex Bulk Downloader
 
 Download manga chapters from [MangaDex](https://mangadex.org) as CBZ files — by title search, direct URL, or manga ID.
