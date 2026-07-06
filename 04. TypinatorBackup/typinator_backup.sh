@@ -1,65 +1,80 @@
 #!/bin/bash
 
 # Typinator Sets Daily Backup
-# Backs up .tyset files modified today to "05. Typinator/" and keeps a
-# 7-day rolling archive in "90. Backups/", both under BACKUP_BASE.
+# Exports .tyset files modified since the last run to Google Drive, then
+# imports any sets that are newer on Drive back to the local machine.
 
-TYPINATOR_SETS="$HOME/Library/Application Support/Typinator/Sets"
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[[ -f "$SCRIPT_DIR/.env" ]] && source "$SCRIPT_DIR/.env"
+
+# Defaults — override any of these in .env
+TYPINATOR_SETS="${TYPINATOR_SETS:-$HOME/Library/Application Support/Typinator/Sets}"
+DRIVE_SUBPATH="${DRIVE_SUBPATH:-08. Software/01. OSX macOS/05. Typinator}"
+ARCHIVE_SUBDIR="${ARCHIVE_SUBDIR:-90. Backups}"
+MAX_DAYS="${MAX_DAYS:-7}"
 
 # Auto-detect Google Drive mount regardless of which account is signed in
-GDRIVE_ROOT=$(ls -d "$HOME/Library/CloudStorage/GoogleDrive-"* 2>/dev/null | head -1)
+GDRIVE_ROOT=$(find "$HOME/Library/CloudStorage" -maxdepth 1 -name "GoogleDrive-*" -type d 2>/dev/null | head -1)
 if [[ -z "$GDRIVE_ROOT" ]]; then
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: No Google Drive mount found in ~/Library/CloudStorage/" >&2
     exit 1
 fi
-BACKUP_BASE="$GDRIVE_ROOT/My Drive/08. Software/01. OSX macOS/05. Typinator"
-MAX_DAYS=7
+BACKUP_BASE="$GDRIVE_ROOT/My Drive/$DRIVE_SUBPATH"
 
 TODAY=$(date +%Y-%m-%d)
 # Per-machine file so two Macs don't corrupt each other's detection window
 MACHINE=$(scutil --get LocalHostName 2>/dev/null || hostname -s)
 LAST_RUN_FILE="$BACKUP_BASE/.last_run_${MACHINE}"
 
+SINCE_EPOCH=0
 if [[ -f "$LAST_RUN_FILE" ]]; then
-    SINCE_EPOCH=$(cat "$LAST_RUN_FILE")
-else
-    SINCE_EPOCH=0
+    raw=$(< "$LAST_RUN_FILE")
+    [[ "$raw" =~ ^[0-9]+$ ]] && SINCE_EPOCH=$raw
 fi
 
-CURRENT_DIR="$BACKUP_BASE"
-ARCHIVE_DIR="$BACKUP_BASE/90. Backups/$TODAY"
+ARCHIVE_DIR="$BACKUP_BASE/$ARCHIVE_SUBDIR/$TODAY"
 LOG_FILE="$BACKUP_BASE/backup.log"
 
-mkdir -p "$CURRENT_DIR"
-mkdir -p "$ARCHIVE_DIR"
+mkdir -p "$BACKUP_BASE"
 
+# ----- EXPORT (local → Drive) -----
 COPIED=0
 SKIPPED=0
+EXPORT_ERRORS=0
 
 for file in "$TYPINATOR_SETS"/*.tyset; do
     [[ -d "$file" ]] || continue
     name=$(basename "$file")
     mod_epoch=$(stat -f %m "$file")
     dest_epoch=0
-    [[ -e "$CURRENT_DIR/$name" ]] && dest_epoch=$(stat -f %m "$CURRENT_DIR/$name")
+    [[ -e "$BACKUP_BASE/$name" ]] && dest_epoch=$(stat -f %m "$BACKUP_BASE/$name")
     if (( mod_epoch > SINCE_EPOCH && mod_epoch > dest_epoch )); then
-        rm -rf "$CURRENT_DIR/$name"
-        cp -rp "$file" "$CURRENT_DIR/$name"
-        rm -rf "$ARCHIVE_DIR/$name"
-        cp -rp "$file" "$ARCHIVE_DIR/$name"
-        echo "[$(date '+%H:%M:%S')] Backed up: $name" >> "$LOG_FILE"
-        (( COPIED++ ))
+        rm -rf "$BACKUP_BASE/$name"
+        if cp -rp "$file" "$BACKUP_BASE/$name"; then
+            mkdir -p "$ARCHIVE_DIR"
+            rm -rf "$ARCHIVE_DIR/$name"
+            cp -rp "$file" "$ARCHIVE_DIR/$name" \
+                || echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING: archive copy failed for $name" >> "$LOG_FILE"
+            echo "[$(date '+%H:%M:%S')] Backed up: $name" >> "$LOG_FILE"
+            (( COPIED++ ))
+        else
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: failed to copy $name to Drive" | tee -a "$LOG_FILE" >&2
+            (( EXPORT_ERRORS++ ))
+        fi
     else
         (( SKIPPED++ ))
     fi
 done
 
 date +%s > "$LAST_RUN_FILE"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Backup complete: $COPIED set(s) copied, $SKIPPED unchanged." >> "$LOG_FILE"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Backup complete: $COPIED set(s) copied, $SKIPPED unchanged, $EXPORT_ERRORS error(s)." >> "$LOG_FILE"
 
 # ----- IMPORT (Drive → local) -----
 TYPINATOR_WAS_RUNNING=false
 ACTIVE_SETS=""
+SKIP_IMPORT=false
 
 if pgrep -xq "Typinator"; then
     TYPINATOR_WAS_RUNNING=true
@@ -77,12 +92,15 @@ APPLESCRIPT
     )
 fi
 
+IMPORTED=0
+IMPORT_ERRORS=0
+
 if [[ -z "$ACTIVE_SETS" ]]; then
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Import skipped: Typinator not running or no active sets found." >> "$LOG_FILE"
 else
     # Determine which Drive sets qualify: active locally + newer on Drive
     SETS_TO_IMPORT=()
-    for drive_file in "$CURRENT_DIR"/*.tyset; do
+    for drive_file in "$BACKUP_BASE"/*.tyset; do
         [[ -d "$drive_file" ]] || continue
         set_filename=$(basename "$drive_file")
         set_name="${set_filename%.tyset}"
@@ -110,23 +128,42 @@ APPLESCRIPT
         pgrep -xq "Typinator" || break
         sleep 1
     done
+    if pgrep -xq "Typinator"; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING: Typinator still running after 10s; import skipped." | tee -a "$LOG_FILE" >&2
+        SKIP_IMPORT=true
+    fi
 
-    IMPORTED=0
-    for set_filename in "${SETS_TO_IMPORT[@]}"; do
-        drive_file="$CURRENT_DIR/$set_filename"
-        local_file="$TYPINATOR_SETS/$set_filename"
-        rm -rf "$local_file"
-        cp -rp "$drive_file" "$local_file"
-        echo "[$(date '+%H:%M:%S')] Imported: $set_filename" >> "$LOG_FILE"
-        (( IMPORTED++ ))
-    done
-
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Import complete: $IMPORTED set(s) imported." >> "$LOG_FILE"
-    $TYPINATOR_WAS_RUNNING && open -a Typinator
+    if [[ "$SKIP_IMPORT" == false ]]; then
+        for set_filename in "${SETS_TO_IMPORT[@]}"; do
+            drive_file="$BACKUP_BASE/$set_filename"
+            local_file="$TYPINATOR_SETS/$set_filename"
+            rm -rf "$local_file"
+            if cp -rp "$drive_file" "$local_file"; then
+                echo "[$(date '+%H:%M:%S')] Imported: $set_filename" >> "$LOG_FILE"
+                (( IMPORTED++ ))
+            else
+                echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: failed to import $set_filename" | tee -a "$LOG_FILE" >&2
+                (( IMPORT_ERRORS++ ))
+            fi
+        done
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Import complete: $IMPORTED set(s) imported, $IMPORT_ERRORS error(s)." >> "$LOG_FILE"
+    fi
 fi
 
-# Remove archive folders older than MAX_DAYS
+# Restart Typinator only if we were the ones that quit it and import ran
+[[ "$TYPINATOR_WAS_RUNNING" == true && "$SKIP_IMPORT" == false ]] && open -a Typinator
+
+# Remove archive folders whose name (date) is older than MAX_DAYS
+CUTOFF=$(date -v -"${MAX_DAYS}d" +%Y-%m-%d)
 while IFS= read -r -d '' old_dir; do
-    rm -rf "$old_dir"
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Removed old archive: $(basename "$old_dir")" >> "$LOG_FILE"
-done < <(find "$BACKUP_BASE/90. Backups" -mindepth 1 -maxdepth 1 -type d -mtime +"$MAX_DAYS" -print0 2>/dev/null)
+    folder=$(basename "$old_dir")
+    if [[ "$folder" < "$CUTOFF" ]]; then
+        rm -rf "$old_dir"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Removed old archive: $folder" >> "$LOG_FILE"
+    fi
+done < <(find "$BACKUP_BASE/$ARCHIVE_SUBDIR" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null)
+
+# Keep log bounded to last 1000 lines
+if [[ -f "$LOG_FILE" ]]; then
+    tail -n 1000 "$LOG_FILE" > "$LOG_FILE.tmp" && mv "$LOG_FILE.tmp" "$LOG_FILE"
+fi
