@@ -21,10 +21,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         qpdf \
     && rm -rf /var/lib/apt/lists/*
 
+RUN groupadd -r enex && useradd -r -g enex -d /app enex
+
 WORKDIR /app
 COPY --from=build /build/target/enex-pdf-textify-1.0.jar app.jar
-RUN mkdir -p /data/in /data/out
+RUN mkdir -p /data/in /data/out && chown -R enex:enex /app /data/in /data/out
 VOLUME ["/data/in", "/data/out"]
+
+USER enex
 
 # Expect input files under /data/in and output written to /data/out
 # (mount your local folders there at `docker run` time)

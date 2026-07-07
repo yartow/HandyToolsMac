@@ -29,7 +29,7 @@ installed: English and Dutch (`eng+nld`); see "Setup — option B: Docker" to ad
 1. Install a JDK (17+) and Maven if you don't have them already.
 2. From this folder, build the runnable jar:
 
-   ```
+   ```bash
    mvn package
    ```
 
@@ -50,7 +50,7 @@ dependency chain (Tesseract, Ghostscript, qpdf) much more fragile to install, so
 image trades a bit of size for reliability.
 
 1. Build the image (from this folder):
-   ```
+   ```bash
    docker build -t enex-pdf-textify .
    ```
 
@@ -58,14 +58,14 @@ image trades a bit of size for reliability.
    and create an empty `./enex-out` folder for the results.
 
 3. Run it, mounting those folders into the container's expected `/data/in` and `/data/out`:
-   ```
+   ```bash
    docker run --rm -v "$(pwd)/enex-in:/data/in" -v "$(pwd)/enex-out:/data/out" enex-pdf-textify
    ```
    (On Windows PowerShell, replace `$(pwd)` with `${PWD}`.)
 
    This always runs in folder mode (every `*.enex` in `enex-in` gets processed into
    `enex-out`). If you want to point at different paths, override the default args:
-   ```
+   ```bash
    docker run --rm -v "$(pwd):/data" enex-pdf-textify /data/notebook.enex /data/notebook-textified.enex
    ```
 
@@ -75,13 +75,13 @@ image trades a bit of size for reliability.
 ## Usage (Java/Maven route)
 
 **Single file:**
-```
+```bash
 java -jar target/enex-pdf-textify-1.0.jar path/to/notebook.enex path/to/notebook-textified.enex
 ```
 
 **Whole folder of exported notebooks at once** (recommended, since you export each
 Evernote notebook as its own `.enex` file):
-```
+```bash
 java -jar target/enex-pdf-textify-1.0.jar path/to/enex-folder path/to/output-folder
 ```
 Every `*.enex` file in the input folder gets processed and written to the output
@@ -105,7 +105,7 @@ depending on how many scanned PDFs you have. The tool is built for that:
   when done.
 - For a run you expect to take a long time, launch it detached so it survives a closed
   terminal, e.g.:
-  ```
+  ```bash
   nohup docker run --rm -v "$(pwd)/enex-in:/data/in" -v "$(pwd)/enex-out:/data/out" enex-pdf-textify > progress.log 2>&1 &
   ```
   or run it inside `tmux`/`screen`. Check on it later with `tail -f progress.log`.
@@ -129,7 +129,7 @@ the target machine sidesteps that entirely.
 If a note has a PDF called `contract.pdf` attached, after processing the note body
 will end up with an extra section at the bottom like:
 
-```
+```text
 --- Extracted text from: contract.pdf ---
 [... full text of the PDF, line by line ...]
 ```

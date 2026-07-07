@@ -48,8 +48,11 @@ final class OcrMyPdfRunner {
                     "--quiet",
                     inFile.toString(), outFile.toString());
 
-            Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
-            String log = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            Path logFile = tmpDir.resolve("ocrmypdf.log");
+            Process process = new ProcessBuilder(command)
+                    .redirectErrorStream(true)
+                    .redirectOutput(logFile.toFile())
+                    .start();
 
             boolean finished = process.waitFor(TIMEOUT_SECONDS, TimeUnit.SECONDS);
             if (!finished) {
@@ -58,6 +61,7 @@ final class OcrMyPdfRunner {
                 return null;
             }
             if (process.exitValue() != 0 || !Files.exists(outFile)) {
+                String log = Files.readString(logFile, StandardCharsets.UTF_8);
                 System.err.println("    [WARN] ocrmypdf failed (exit " + process.exitValue() + ") for " + label
                         + (log.isBlank() ? "" : ": " + log.trim()));
                 return null;

@@ -22,7 +22,7 @@ final class PdfTextExtractor {
 
     Result extractWithOcrFallback(byte[] pdfBytes, String label) {
         String direct = extractText(pdfBytes);
-        if (direct.trim().length() >= MIN_MEANINGFUL_CHARS) {
+        if (countNonWhitespace(direct) >= MIN_MEANINGFUL_CHARS) {
             return new Result(direct, false);
         }
 
@@ -36,6 +36,16 @@ final class PdfTextExtractor {
         long seconds = Duration.between(start, Instant.now()).toSeconds();
         System.out.printf("    [OCR] %s done in %ds%n", label, seconds);
         return new Result(ocrText, true);
+    }
+
+    private static int countNonWhitespace(String text) {
+        int count = 0;
+        for (int i = 0; i < text.length(); i++) {
+            if (!Character.isWhitespace(text.charAt(i))) {
+                count++;
+            }
+        }
+        return count;
     }
 
     String extractText(byte[] pdfBytes) {

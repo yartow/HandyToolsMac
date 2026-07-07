@@ -51,7 +51,7 @@ def find_candidates(root: str, exclude_dirs: set) -> list[Path]:
 
 
 def file_hash(path: Path) -> str:
-    h = hashlib.md5()
+    h = hashlib.md5(usedforsecurity=False)
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(CHUNK_SIZE), b""):
             h.update(chunk)

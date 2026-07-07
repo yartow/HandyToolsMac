@@ -124,13 +124,18 @@ def db_signature(db_path: Path) -> Tuple[int, Optional[float]]:
         shutil.rmtree(db_copy.parent, ignore_errors=True)
 
 
-def wait_for_import_to_finish(db_path: Path) -> None:
+def wait_for_import_to_finish(db_path: Path, baseline: Tuple[int, Optional[float]]) -> None:
+    changed_from_baseline = False
     stable_since: Optional[float] = None
     last_signature = None
     start = time.monotonic()
     while time.monotonic() - start < MAX_WAIT_SECONDS:
         signature = db_signature(db_path)
-        if signature == last_signature:
+        if not changed_from_baseline:
+            if signature != baseline:
+                changed_from_baseline = True
+                last_signature = signature
+        elif signature == last_signature:
             if stable_since is None:
                 stable_since = time.monotonic()
             elif time.monotonic() - stable_since >= STABLE_SECONDS_REQUIRED:
@@ -144,6 +149,7 @@ def wait_for_import_to_finish(db_path: Path) -> None:
 
 def import_file(enex_path: Path, upnote_db: Path) -> None:
     print(f"    [INFO] Triggering UpNote import for {enex_path.name} ...")
+    baseline = db_signature(upnote_db)
     trigger_import_dialog()
     time.sleep(1)
     click_select_files_button()
@@ -151,7 +157,7 @@ def import_file(enex_path: Path, upnote_db: Path) -> None:
     time.sleep(1)
     click_import_notes_confirm_button()
     print("    [INFO] Import triggered -- waiting for it to finish ...")
-    wait_for_import_to_finish(upnote_db)
+    wait_for_import_to_finish(upnote_db, baseline)
     print(f"    [DONE] {enex_path.name}")
 
 

@@ -4,7 +4,7 @@ Automatically backs up Typinator sets that were modified since the last run to G
 
 ## Folder structure on Google Drive
 
-```
+```text
 My Drive/08. Software/01. OSX macOS/05. Typinator/
 ├── *.tyset               ← always holds the latest version of each changed set
 ├── .last_run_<hostname>  ← per-machine export marker (safe to delete when decommissioning a Mac)

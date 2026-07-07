@@ -80,8 +80,8 @@ def delete_and_log(paths: List[str], durations: dict, log_path: str) -> Tuple[in
     freed = 0
     with open(log_path, "a") as log:
         for p in paths:
-            size = os.path.getsize(p)
             try:
+                size = os.path.getsize(p)
                 os.remove(p)
             except OSError as e:
                 log.write(json.dumps({

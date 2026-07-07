@@ -15,7 +15,7 @@ the top-right of your screen, or press Cmd+Space).
 2. Copy-paste this exact line and press Return (this jumps Terminal into this
    project's folder — adjust if you moved it):
    ```
-   cd "/Users/andrewyong/Documents/GitHub/HandyToolsMac/14. Evernote to UpNote Migration Automation"
+   cd "$HOME/Documents/GitHub/HandyToolsMac/14. Evernote to UpNote Migration Automation"
    ```
    You'll know it worked if your Terminal prompt now shows that folder name.
 

@@ -61,10 +61,19 @@ def is_movie(path: str) -> bool:
 def load_existing_csv(out_path: str) -> List[Tuple[str, float, int]]:
     if not os.path.exists(out_path):
         return []
+    rows = []
     with open(out_path, newline="") as f:
         r = csv.reader(f)
         next(r, None)  # header
-        return [(row[0], float(row[1]), int(row[2])) for row in r]
+        for line_num, row in enumerate(r, start=2):
+            if len(row) < 3:
+                print(f"  [WARN] {out_path}:{line_num}: expected 3 columns, got {len(row)} -- skipping")
+                continue
+            try:
+                rows.append((row[0], float(row[1]), int(row[2])))
+            except ValueError:
+                print(f"  [WARN] {out_path}:{line_num}: unparseable score/class -- skipping")
+    return rows
 
 
 def load_deleted_entries(log_paths: List[str]) -> List[Tuple[str, float, int]]:

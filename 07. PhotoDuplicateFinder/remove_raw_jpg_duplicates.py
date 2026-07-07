@@ -39,7 +39,7 @@ def find_raws_to_delete(root: str) -> list[Path]:
             path = Path(dirpath) / name
             by_stem.setdefault(path.stem, []).append(path)
 
-        for stem, paths in by_stem.items():
+        for paths in by_stem.values():
             exts = {p.suffix.lower() for p in paths}
             if not (exts & RAW_EXTENSIONS) or not (exts & JPG_EXTENSIONS):
                 continue

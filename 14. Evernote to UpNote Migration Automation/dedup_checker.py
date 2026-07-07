@@ -37,15 +37,21 @@ class NoteMatch:
 
 
 def snapshot_upnote_db(db_path: Path) -> Path:
-    """Copies the live sqlite3 db (+ WAL/SHM sidecars) to a temp dir. The
-    caller is responsible for deleting the returned path's parent dir."""
+    """Snapshots the live sqlite3 db (including any in-flight WAL writes) into
+    a temp dir via the SQLite backup API, so the copy can't straddle an
+    inconsistent mid-write state the way copying the file(s) directly could.
+    The caller is responsible for deleting the returned path's parent dir."""
     tmp_dir = Path(tempfile.mkdtemp(prefix="upnote-dedup-"))
     dest = tmp_dir / db_path.name
-    shutil.copy2(db_path, dest)
-    for suffix in ("-wal", "-shm"):
-        sidecar = db_path.with_name(db_path.name + suffix)
-        if sidecar.exists():
-            shutil.copy2(sidecar, dest.with_name(dest.name + suffix))
+    src_conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    try:
+        dest_conn = sqlite3.connect(dest)
+        try:
+            src_conn.backup(dest_conn)
+        finally:
+            dest_conn.close()
+    finally:
+        src_conn.close()
     return dest
 
 
@@ -128,6 +134,8 @@ def main() -> None:
 
     if not args.upnote_db.exists():
         sys.exit(f"[ERROR] UpNote database not found at {args.upnote_db}")
+    if not args.path.exists():
+        sys.exit(f"[ERROR] Path not found: {args.path}")
 
     db_copy = snapshot_upnote_db(args.upnote_db)
     try:
