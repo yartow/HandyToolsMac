@@ -59,33 +59,71 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] Backup complete: $COPIED set(s) copied, $SK
 
 # ----- IMPORT (Drive → local) -----
 TYPINATOR_WAS_RUNNING=false
+ACTIVE_SETS=""
+
 if pgrep -xq "Typinator"; then
     TYPINATOR_WAS_RUNNING=true
+    ACTIVE_SETS=$(osascript <<'APPLESCRIPT'
+tell application "Typinator"
+    set output to ""
+    repeat with aSet in abbreviation sets
+        if enabled of aSet then
+            set output to output & (name of aSet) & linefeed
+        end if
+    end repeat
+    return output
+end tell
+APPLESCRIPT
+    )
+fi
+
+if [[ -z "$ACTIVE_SETS" ]]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Import skipped: Typinator not running or no active sets found." >> "$LOG_FILE"
+else
+    # Determine which Drive sets qualify: active locally + newer on Drive
+    SETS_TO_IMPORT=()
+    for drive_file in "$CURRENT_DIR"/*.tyset; do
+        [[ -d "$drive_file" ]] || continue
+        set_filename=$(basename "$drive_file")
+        set_name="${set_filename%.tyset}"
+        local_file="$TYPINATOR_SETS/$set_filename"
+        printf '%s' "$ACTIVE_SETS" | grep -qxF "$set_name" || continue
+        drive_mod=$(stat -f %m "$drive_file")
+        local_mod=0
+        [[ -e "$local_file" ]] && local_mod=$(stat -f %m "$local_file")
+        (( drive_mod > local_mod )) && SETS_TO_IMPORT+=("$set_filename")
+    done
+
+    # Delete qualifying sets from Typinator's registry before quitting (prevents duplicates on restart)
+    for set_filename in "${SETS_TO_IMPORT[@]}"; do
+        set_name="${set_filename%.tyset}"
+        osascript <<APPLESCRIPT 2>/dev/null
+tell application "Typinator"
+    delete (first abbreviation set whose name is "$set_name")
+end tell
+APPLESCRIPT
+        echo "[$(date '+%H:%M:%S')] Removed from Typinator registry: $set_name" >> "$LOG_FILE"
+    done
+
     osascript -e 'tell application "Typinator" to quit'
     for i in {1..10}; do
         pgrep -xq "Typinator" || break
         sleep 1
     done
-fi
 
-IMPORTED=0
-for drive_file in "$CURRENT_DIR"/*.tyset; do
-    [[ -d "$drive_file" ]] || continue
-    name=$(basename "$drive_file")
-    local_file="$TYPINATOR_SETS/$name"
-    drive_mod=$(stat -f %m "$drive_file")
-    local_mod=0
-    [[ -e "$local_file" ]] && local_mod=$(stat -f %m "$local_file")
-    if (( drive_mod > local_mod )); then
+    IMPORTED=0
+    for set_filename in "${SETS_TO_IMPORT[@]}"; do
+        drive_file="$CURRENT_DIR/$set_filename"
+        local_file="$TYPINATOR_SETS/$set_filename"
         rm -rf "$local_file"
         cp -rp "$drive_file" "$local_file"
-        echo "[$(date '+%H:%M:%S')] Imported: $name" >> "$LOG_FILE"
+        echo "[$(date '+%H:%M:%S')] Imported: $set_filename" >> "$LOG_FILE"
         (( IMPORTED++ ))
-    fi
-done
+    done
 
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Import complete: $IMPORTED set(s) imported." >> "$LOG_FILE"
-$TYPINATOR_WAS_RUNNING && open -a Typinator
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Import complete: $IMPORTED set(s) imported." >> "$LOG_FILE"
+    $TYPINATOR_WAS_RUNNING && open -a Typinator
+fi
 
 # Remove archive folders older than MAX_DAYS
 while IFS= read -r -d '' old_dir; do
