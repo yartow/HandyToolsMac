@@ -1,0 +1,88 @@
+% =====================================================================
+%  Codenames — kaarten op Claude Design template
+%  Kaartgrootte: 66 x 44mm (liggend), 3 kolommen x 6 rijen = 18 kaarten
+%  Compileren met:  xelatex codenames_zh_coords.tex
+%  (NIET met pdflatex — geen CJK-ondersteuning)
+%
+%  Elke kaart krijgt de karakters + pinyin TWEE keer, in hetzelfde
+%  kaartvak, gecentreerd rond het midden (niet tegen de randen):
+%   - onder:  normale richting, zwart
+%   - boven:  180° gedraaid, grijs, schuin
+%     (leesbaar voor de speler aan de overkant van de tafel)
+%  Ze staan dicht bij elkaar zodat het koppel duidelijk bij dezelfde
+%  kaart hoort, ook zonder zichtbare kaartrand.
+% =====================================================================
+\documentclass[a4paper]{article}
+
+\usepackage[a4paper,margin=0mm]{geometry}
+\usepackage{fontspec}
+\usepackage{tikz}
+\usepackage{xcolor}
+
+\setmainfont{Avenir Next}                          % <- pas aan naar bv. "Times New Roman"
+                                                     %    of "Helvetica Neue" op macOS
+\newfontfamily\zhnormaal{BiauKaiTC}          % voorkant, rechtop
+\newfontfamily\zhomgekeerd{BiauKaiTC}[FakeSlant=0.15]  % gedraaid, schuin
+% Op macOS zonder Noto CJK geinstalleerd, gebruik in plaats daarvan:
+%   \newfontfamily\zhnormaal{Songti TC}
+%   \newfontfamily\zhomgekeerd{PingFang TC}[FakeSlant=0.15]
+
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+
+% ---------------------------------------------------------------------
+%  \Kaart{X-mm}{Y-mm}{hanzi}{pinyin}
+%  X, Y = TOP-LEFT coördinaat van het kaartvak (top-left van de A4).
+%  Kaartgrootte 66 x 44mm. Layout is gecentreerd i.p.v. tegen de
+%  boven-/onderrand geduwd, om verwarring met de buurkaart te vermijden.
+% ---------------------------------------------------------------------
+\newcommand{\Kaart}[4]{%
+  \begin{tikzpicture}[remember picture, overlay]
+    \node[anchor=north west, xshift=#1mm, yshift=-#2mm, inner sep=0pt]
+      at (current page.north west) {%
+      \begin{minipage}[t][44mm][c]{60mm}
+        \centering
+        % --- Gedraaide kopie (voor lezer aan overkant tafel) ---
+        \rotatebox{180}{%
+          \begin{minipage}{50mm}
+            \centering
+            \color{gray!75}
+            {\zhomgekeerd\fontsize{15}{18}\selectfont #3}\\[0.5mm]
+            {\itshape\fontsize{6.5}{8}\selectfont #4}
+          \end{minipage}%
+        }
+        \\[3.5mm]
+        % --- Normale kopie ---
+        \begin{minipage}{50mm}
+          \centering
+          \color{black}
+          {\zhnormaal\fontsize{15}{18}\selectfont #3}\\[0.5mm]
+          {\itshape\fontsize{6.5}{8}\selectfont #4}
+        \end{minipage}
+      \end{minipage}%
+    };
+  \end{tikzpicture}%
+}
+
+% =====================================================================
+%  ÉÉN DATALIJST PER PAGINA: x/y/hanzi/pinyin  (18 items = 1 volle pagina)
+%  De x/y-waarden zijn exact de 18 slot-coördinaten uit jouw Claude
+%  Design template. Om nieuwe woorden te gebruiken: alleen hanzi/pinyin
+%  aanpassen, x/y blijft hetzelfde raster.
+% =====================================================================
+\newcommand{\Paginaeen}{%
+  1.50/4.71/龍/lóng,        71.00/4.71/月亮/yuèliàng,      140.50/4.71/蝴蝶/húdié,
+  1.50/53.43/火山/huǒshān,  71.00/53.43/船/chuán,          140.50/53.43/書/shū,
+  1.50/102.14/貓/māo,       71.00/102.14/劍/jiàn,          140.50/102.14/珍珠/zhēnzhū,
+  1.50/150.86/冰淇淋/bīngqílín, 71.00/150.86/橋/qiáo,      140.50/150.86/鑽石/zuànshí,
+  1.50/199.57/鷹/yīng,      71.00/199.57/金/jīn,           140.50/199.57/海洋/hǎiyáng,
+  1.50/248.29/星星/xīngxing, 71.00/248.29/錘子/chuízi,     140.50/248.29/玫瑰/méiguī%
+}
+
+\begin{document}
+
+\foreach \x/\y/\hanzi/\pinyin in \Paginaeen {%
+  \Kaart{\x}{\y}{\hanzi}{\pinyin}%
+}
+
+\end{document}

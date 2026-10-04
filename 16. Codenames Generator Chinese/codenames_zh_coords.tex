@@ -1,0 +1,316 @@
+% =====================================================================
+%  Codenames — kaarten op Claude Design template
+%  Elke kaart bestaat uit TWEE aparte zones (geen doorlopend vlak):
+%   - Tan zone  (64x16mm): gedraaide tekst (180°), grijs, KLEINER
+%     leesbaar voor de speler aan de overkant van de tafel
+%   - Witte zone(64x23mm): normale tekst, zwart, GROTER
+%
+%  *** BELANGRIJK: COMPILEER TWEE KEER ACHTER ELKAAR ***
+%  Dit bestand gebruikt TikZ "remember picture, overlay" om tekst op
+%  absolute mm-coördinaten te zetten. Die techniek heeft ALTIJD twee
+%  compilatiepassen nodig: de eerste pas schrijft de paginapositie naar
+%  het .aux-bestand, pas de tweede pas leest dat terug en tekent de
+%  content. Bij een NIEUW of net-gewijzigd bestand blijft de pagina na
+%  ÉÉN xelatex-run dus LEEG (geen foutmelding, gewoon stil niets zichtbaar).
+%
+%    xelatex codenames_zh_coords.tex
+%    xelatex codenames_zh_coords.tex     <- deze tweede keer is verplicht
+%
+%  Compileren met:  xelatex   (NIET pdflatex — geen CJK-ondersteuning)
+% =====================================================================
+\documentclass[a4paper]{article}
+
+\usepackage[a4paper,margin=0mm]{geometry}
+\usepackage{fontspec}
+\usepackage{tikz}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{eso-pic}
+
+% ---------------------------------------------------------------------
+%  Achtergrondafbeelding (het kaart-template van Claude Design).
+%  Wordt via eso-pic op ELKE pagina automatisch herhaald bij het
+%  genereren (dus ook bij een 2e, 3e... pagina) en exact geschaald
+%  op de volledige A4 (\paperwidth x \paperheight).
+%  Zet "achtergrond.png" in dezelfde map als dit .tex-bestand.
+% ---------------------------------------------------------------------
+\newcommand{\Achtergrondbestand}{achtergrond.png}
+\AddToShipoutPictureBG{%
+  \AtPageLowerLeft{%
+    \includegraphics[width=\paperwidth,height=\paperheight]{\Achtergrondbestand}%
+  }%
+}
+
+\setmainfont{Avenir Next}                          % <- pas aan naar bv. "Times New Roman"
+                                                     %    of "Helvetica Neue" op macOS
+\newfontfamily\zhnormaal{BiauKaiTC}          % voorkant, rechtop
+\newfontfamily\zhomgekeerd{BiauKaiTC}[FakeSlant=0.15]  % gedraaid, schuin
+% Op macOS zonder Noto CJK geinstalleerd, gebruik in plaats daarvan:
+%   \newfontfamily\zhnormaal{Songti TC}
+%   \newfontfamily\zhomgekeerd{PingFang TC}[FakeSlant=0.15]
+
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\newsavebox{\tanbox}
+
+% ---------------------------------------------------------------------
+%  \Kaart{X-mm}{TanY-mm}{WhiteY-mm}{hanzi}{pinyin}
+%  X       = linkerrand van beide zones (identiek voor tan en wit)
+%  TanY    = top-left Y van de tan zone   (64 x 16mm)
+%  WhiteY  = top-left Y van de witte zone (64 x 23mm)
+% ---------------------------------------------------------------------
+\newcommand{\Kaart}[5]{%
+  % --- Tan zone: gedraaide tekst, donker, groot, pinyin tussen haakjes ---
+  \begin{tikzpicture}[remember picture, overlay]
+    \node[anchor=north west, xshift=#1mm, yshift=-#2mm, inner sep=0pt]
+      at (current page.north west) {%
+      %\begin{minipage}[t][16mm][c]{64mm}
+      \begin{minipage}[t][16mm][c]{49mm}
+        \centering
+        \rotatebox{180}{%
+          \savebox{\tanbox}{%
+            \color{black}%
+            {\zhomgekeerd\fontsize{26}{30}\selectfont #4}%
+            \,{\itshape\fontsize{12}{14}\selectfont (#5)}%
+          }%
+          %\ifdim\wd\tanbox>62mm
+          \ifdim\wd\tanbox>47mm
+            %\resizebox{62mm}{!}{\usebox{\tanbox}}%
+            \resizebox{45mm}{!}{\usebox{\tanbox}}%
+          \else
+            \usebox{\tanbox}%
+          \fi
+        }%
+      \end{minipage}%
+    };
+  \end{tikzpicture}%
+  % --- Witte zone: normale tekst, groter, zwart ---
+  \begin{tikzpicture}[remember picture, overlay]
+    \node[anchor=north west, xshift=#1mm, yshift=-#3mm, inner sep=0pt]
+      at (current page.north west) {%
+      \begin{minipage}[t][23mm][c]{64mm}
+        \centering
+        \color{black}
+        {\zhnormaal\fontsize{23}{27}\selectfont #4}\\[1.2mm]
+        {\itshape\fontsize{9.5}{11}\selectfont #5}
+      \end{minipage}%
+    };
+  \end{tikzpicture}%
+}
+
+% =====================================================================
+%  ÉÉN DATALIJST PER PAGINA: x/tanY/whiteY/hanzi/pinyin (18 = 1 pagina)
+%  Kolommen X:   C1=3.50   C2=73.00   C3=142.50
+%  Tan-Y:  R1=6.71  R2=55.43  R3=104.14  R4=152.86  R5=201.57  R6=250.29
+%  Wit-Y:  R1=23.71 R2=72.43 R3=121.14  R4=169.86  R5=218.57  R6=267.29
+%  Om nieuwe woorden te gebruiken: alleen hanzi/pinyin aanpassen,
+%  de coördinaten blijven altijd hetzelfde raster.
+% =====================================================================
+\newcommand{\Paginaeen}{%
+  3.50/6.71/23.71/龍/lóng,          73.00/6.71/23.71/月亮/yuèliàng,      142.50/6.71/23.71/蝴蝶/húdié,
+  3.50/55.43/72.43/火山/huǒshān,    73.00/55.43/72.43/船/chuán,          142.50/55.43/72.43/書/shū,
+  3.50/104.14/121.14/貓/māo,        73.00/104.14/121.14/劍/jiàn,         142.50/104.14/121.14/珍珠/zhēnzhū,
+  3.50/152.86/169.86/冰淇淋/bīngqílín, 73.00/152.86/169.86/橋/qiáo,      142.50/152.86/169.86/鑽石/zuànshí,
+  3.50/201.57/218.57/鷹/yīng,       73.00/201.57/218.57/金/jīn,          142.50/201.57/218.57/海洋/hǎiyáng,
+  3.50/250.29/267.29/星星/xīngxing, 73.00/250.29/267.29/錘子/chuízi,     142.50/250.29/267.29/玫瑰/méiguī%
+}
+
+% Tweede pagina met andere woorden — kopieer dit blok voor extra pagina's.
+% coördinaten blijven altijd hetzelfde raster, alleen hanzi/pinyin wijzigt.
+\newcommand{\Paginatwee}{%
+  3.50/6.71/23.71/塔/tǎ,            73.00/6.71/23.71/雪/xuě,             142.50/6.71/23.71/燈泡/dēngpào,
+  3.50/55.43/72.43/風/fēng,         73.00/55.43/72.43/旗/qí,             142.50/55.43/72.43/象/xiàng,
+  3.50/104.14/121.14/皇帝/huángdì,  73.00/104.14/121.14/寶藏/bǎozàng,    142.50/104.14/121.14/幽靈/yōulíng,
+  3.50/152.86/169.86/雷電/léidiàn,  73.00/152.86/169.86/音樂/yīnyuè,     142.50/152.86/169.86/舞蹈/wǔdǎo,
+  3.50/201.57/218.57/牧場/mùchǎng,  73.00/201.57/218.57/監獄/jiānyù,     142.50/201.57/218.57/沙漠/shāmò,
+  3.50/250.29/267.29/森林/sēnlín,   73.00/250.29/267.29/廚師/chúshī,     142.50/250.29/267.29/海盜/hǎidào%
+}
+
+
+% PAGINA 3
+\newcommand{\Paginathree}{%
+  3.50/6.71/23.71/武士/wǔshì,       73.00/6.71/23.71/教堂/jiàotáng,      142.50/6.71/23.71/城堡/chéngbǎo,
+  3.50/55.43/72.43/火車/huǒchē,     73.00/55.43/72.43/飛機/fēijī,        142.50/55.43/72.43/潛艇/qiántǐng,
+  3.50/104.14/121.14/怪物/guàiwù,   73.00/104.14/121.14/寶石/báoshí,     142.50/104.14/121.14/毒藥/dúyào,
+  3.50/152.86/169.86/王冠/wángguān, 73.00/152.86/169.86/魔法/mófǎ,       142.50/152.86/169.86/幽默/yōumò,
+  3.50/201.57/218.57/謎題/míti,     73.00/201.57/218.57/象徵/xiàngzhēng, 142.50/201.57/218.57/勇敢/yǒnggǎn,
+  3.50/250.29/267.29/秘密/mìmì,     73.00/250.29/267.29/陷阱/xiànjǐng,    142.50/250.29/267.29/光/guāng%
+}
+
+% PAGINA 4
+\newcommand{\Paginafour}{%
+  3.50/6.71/23.71/影子/yǐngzi,      73.00/6.71/23.71/時間/shíjiān,       142.50/6.71/23.71/空間/kōngjiān,
+  3.50/55.43/72.43/色彩/sècǎi,      73.00/55.43/72.43/聲音/shēngyīn,     142.50/55.43/72.43/香氣/xiāngqì,
+  3.50/104.14/121.14/味道/wèidào,   73.00/104.14/121.14/溫度/wēndù,      142.50/104.14/121.14/濕度/shīdù,
+  3.50/152.86/169.86/速度/sùdù,     73.00/152.86/169.86/距離/jùlí,       142.50/152.86/169.86/重量/zhòngliàng,
+  3.50/201.57/218.57/長度/chángdù,  73.00/201.57/218.57/寬度/kuāndù,     142.50/201.57/218.57/高度/gāodù,
+  3.50/250.29/267.29/深度/shēndù,   73.00/250.29/267.29/美麗/měilì,      142.50/250.29/267.29/醜陋/chǒulòu%
+}
+
+% PAGINA 5
+\newcommand{\Paginafive}{%
+  3.50/6.71/23.71/強壯/qiángzhuàng, 73.00/6.71/23.71/虛弱/xūruò,         142.50/6.71/23.71/聰明/cōngmíng,
+  3.50/55.43/72.43/愚蠢/yúchǔn,     73.00/55.43/72.43/誠實/chéngshí,     142.50/55.43/72.43/欺騙/qīpiàn,
+  3.50/104.14/121.14/友善/yǒushàn,  73.00/104.14/121.14/殘忍/cánrěn,     142.50/104.14/121.14/寬容/kuānróng,
+  3.50/152.86/169.86/嫉妒/jídù,     73.00/152.86/169.86/傲慢/àomàn,      142.50/152.86/169.86/謙虛/qiānxū,
+  3.50/201.57/218.57/貪心/tānxīn,   73.00/201.57/218.57/慷慨/kāngkǎi,    142.50/201.57/218.57/自私/zìsī,
+  3.50/250.29/267.29/勤勞/qínláo,   73.00/250.29/267.29/懶惰/lǎnduò,     142.50/250.29/267.29/樂觀/lèguān%
+}
+
+% PAGINA 6
+\newcommand{\Paginasix}{%
+  3.50/6.71/23.71/悲觀/bēiguān,     73.00/6.71/23.71/希望/xīwàng,        142.50/6.71/23.71/失望/shīwàng,
+  3.50/55.43/72.43/勇氣/yǒngqì,     73.00/55.43/72.43/恐懼/kǒngjù,       142.50/55.43/72.43/信心/xìnxīn,
+  3.50/104.14/121.14/懷疑/huáiyí,   73.00/104.14/121.14/確定/quèdìng,    142.50/104.14/121.14/疑問/yíwèn,
+  3.50/152.86/169.86/答案/dá'àn,    73.00/152.86/169.86/問題/wèntí,      142.50/152.86/169.86/謎語/míyǔ,
+  3.50/201.57/218.57/秘密/mìmì,     73.00/201.57/218.57/線索/xiànsuǒ,    142.50/201.57/218.57/證據/zhèngjù,
+  3.50/250.29/267.29/事實/shìshí,   73.00/250.29/267.29/謊言/huǎngyán,   142.50/250.29/267.29/真相/zhēnxiàng%
+}
+
+% PAGINA 7
+\newcommand{\Paginaseven}{%
+  3.50/6.71/23.71/災難/zāinàn,      73.00/6.71/23.71/幸運/xìngyùn,       142.50/6.71/23.71/不幸/búxìng,
+  3.50/55.43/72.43/運氣/yùnqi,      73.00/55.43/72.43/機會/jīhuì,        142.50/55.43/72.43/危險/wēixiǎn,
+  3.50/104.14/121.14/安全/ānquán,   73.00/104.14/121.14/和平/héping,     142.50/104.14/121.14/戰爭/zhànzhēng,
+  3.50/152.86/169.86/勝利/shènglì,  73.00/152.86/169.86/失敗/shībài,     142.50/152.86/169.86/進展/jìnzhǎn,
+  3.50/201.57/218.57/進步/jìnbù,    73.00/201.57/218.57/停滯/tíngzhì,    142.50/201.57/218.57/進攻/jìngōng,
+  3.50/250.29/267.29/防守/fángshǒu, 73.00/250.29/267.29/逃脫/táotuō,     142.50/250.29/267.29/捕獲/bǔhuò%
+}
+
+% PAGINA 8
+\newcommand{\Paginaeight}{%
+  3.50/6.71/23.71/獵物/lièwù,       73.00/6.71/23.71/獵人/lièrén,        142.50/6.71/23.71/陷阱/xiànjǐng,
+  3.50/55.43/72.43/陰謀/yīnmóu,     73.00/55.43/72.43/暴露/bàolù,        142.50/55.43/72.43/隱藏/yǐncáng,
+  3.50/104.14/121.14/揭露/jiēlù,    73.00/104.14/121.14/伏擊/fújī,       142.50/104.14/121.14/埋伏/máifú,
+  3.50/152.86/169.86/爆炸/bàozhà,   73.00/152.86/169.86/引爆/yǐnbào,     142.50/152.86/169.86/炸彈/zhàdàn,
+  3.50/201.57/218.57/危害/wēihài,   73.00/201.57/218.57/損壞/sǔnhuài,    142.50/201.57/218.57/破壞/pòhuài,
+  3.50/250.29/267.29/修復/xiūfù,    73.00/250.29/267.29/重建/chóngjiàn,  142.50/250.29/267.29/重建/chóngjiàn%
+}
+
+% PAGINA 9
+\newcommand{\Paginanine}{%
+  3.50/6.71/23.71/創造/chuàngzào,   73.00/6.71/23.71/發明/fāmíng,        142.50/6.71/23.71/設計/shèjì,
+  3.50/55.43/72.43/計劃/jìhuà,      73.00/55.43/72.43/準備/zhǔnbèi,      142.50/55.43/72.43/實行/shíxíng,
+  3.50/104.14/121.14/努力/nǔlì,     73.00/104.14/121.14/堅持/jiānchí,    142.50/104.14/121.14/完成/wánchéng,
+  3.50/152.86/169.86/成功/chénggōng, 73.00/152.86/169.86/失敗/shībài,    142.50/152.86/169.86/嘗試/chángshì,
+  3.50/201.57/218.57/錯誤/cuòwù,    73.00/201.57/218.57/修正/xiūzhèng,   142.50/201.57/218.57/改進/gǎijìn,
+  3.50/250.29/267.29/改變/gǎibiàn,  73.00/250.29/267.29/轉變/zhuǎnbiàn,  142.50/250.29/267.29/演變/yǎnbiàn%
+}
+
+% PAGINA 10
+\newcommand{\Paginaten}{%
+  3.50/6.71/23.71/進化/jìnhuà,      73.00/6.71/23.71/退化/tuìhuà,        142.50/6.71/23.71/適應/shìyìng,
+  3.50/55.43/72.43/變異/biànyì,     73.00/55.43/72.43/基因/jīyīn,        142.50/55.43/72.43/遺傳/yíchuán,
+  3.50/104.14/121.14/生存/shēngcún, 73.00/104.14/121.14/死亡/sǐwáng,     142.50/104.14/121.14/重生/chóngshēng,
+  3.50/152.86/169.86/循環/xúnhuán,  73.00/152.86/169.86/終結/zhōngjié,   142.50/152.86/169.86/開始/kāishǐ,
+  3.50/201.57/218.57/結束/jiéshù,   73.00/201.57/218.57/中斷/zhōngduàn,   142.50/201.57/218.57/持續/chíxù,
+  3.50/250.29/267.29/間歇/jiànxié,  73.00/250.29/267.29/停留/tíngliú,    142.50/250.29/267.29/來去/láiqù%
+}
+
+% PAGINA 11
+\newcommand{\Paginaeleven}{%
+  3.50/6.71/23.71/往返/wǎngfǎn,     73.00/6.71/23.71/交換/jiāohuàn,      142.50/6.71/23.71/轉移/zhuǎnyí,
+  3.50/55.43/72.43/移動/yídòng,     73.00/55.43/72.43/位置/wèizhì,       142.50/55.43/72.43/方向/fāngxiàng,
+  3.50/104.14/121.14/路線/lùxiàn,   73.00/104.14/121.14/地圖/dìtú,       142.50/104.14/121.14/邊界/biānjiè,
+  3.50/152.86/169.86/領土/lǐngtǔ,   73.00/152.86/169.86/邊境/biānnjìng,  142.50/152.86/169.86/邊境/biānnjìng,
+  3.50/201.57/218.57/座標/zuòbiāo,  73.00/201.57/218.57/地點/dìdiǎn,     142.50/201.57/218.57/地區/dìqū,
+  3.50/250.29/267.29/國家/guójiā,   73.00/250.29/267.29/城市/chéngshì,   142.50/250.29/267.29/村莊/cūnzhuāng%
+}
+
+% PAGINA 12
+\newcommand{\Paginatwelve}{%
+  3.50/6.71/23.71/鄉村/xiāngcūn,    73.00/6.71/23.71/首都/shǒudū,        142.50/6.71/23.71/首都/shǒudū,
+  3.50/55.43/72.43/街道/jiēdào,     73.00/55.43/72.43/廣場/guǎngchǎng,   142.50/55.43/72.43/公園/gōngyuán,
+  3.50/104.14/121.14/花園/huāyuán,  73.00/104.14/121.14/庭院/tíngyuàn,   142.50/104.14/121.14/房屋/fángwū,
+  3.50/152.86/169.86/建築/jiànzhù,  73.00/152.86/169.86/橋樑/qiáoliàng,  142.50/152.86/169.86/牆壁/qiángbì,
+  3.50/201.57/218.57/門窗/ménzhuāng, 73.00/201.57/218.57/樓梯/loútī,     142.50/201.57/218.57/電梯/diàntī,
+  3.50/250.29/267.29/地板/dìbǎn,    73.00/250.29/267.29/天花板/tiānhuābǎn, 142.50/250.29/267.29/屋頂/wūdǐng%
+}
+
+% PAGINA 13
+\newcommand{\Paginathirteen}{%
+  3.50/6.71/23.71/窗簾/chuānglián,  73.00/6.71/23.71/燈光/děngguāng,     142.50/6.71/23.71/燭光/zhúguāng,
+  3.50/55.43/72.43/蠟燭/làzhú,      73.00/55.43/72.43/火焰/huǒyàn,       142.50/55.43/72.43/煙火/yānhuǒ,
+  3.50/104.14/121.14/灰燼/huībǐn,   73.00/104.14/121.14/塵埃/chén'āi,    142.50/104.14/121.14/碎片/suìpiàn,
+  3.50/152.86/169.86/碎屑/suìxiè,   73.00/152.86/169.86/粉塵/fěnchén,    142.50/152.86/169.86/廢料/fèiliào,
+  3.50/201.57/218.57/垃圾/lājī,     73.00/201.57/218.57/汙染/wūrǎn,      142.50/201.57/218.57/潔淨/jiéjìng,
+  3.50/250.29/267.29/清潔/qīngjié,  73.00/250.29/267.29/衛生/wèishēng,   142.50/250.29/267.29/消毒/xiāodú%
+}
+
+% PAGINA 14
+\newcommand{\Paginafourteen}{%
+  3.50/6.71/23.71/塔/tǎ,            73.00/6.71/23.71/雪/xuě,             142.50/6.71/23.71/燈泡/dēngpào,
+  3.50/55.43/72.43/風/fēng,         73.00/55.43/72.43/旗/qí,             142.50/55.43/72.43/象/xiàng,
+  3.50/104.14/121.14/皇帝/huángdì,  73.00/104.14/121.14/寶藏/bǎozàng,    142.50/104.14/121.14/幽靈/yōulíng,
+  3.50/152.86/169.86/雷電/léidiàn,  73.00/152.86/169.86/音樂/yīnyuè,     142.50/152.86/169.86/舞蹈/wǔdǎo,
+  3.50/201.57/218.57/牧場/mùchǎng,  73.00/201.57/218.57/監獄/jiānyù,     142.50/201.57/218.57/沙漠/shāmò,
+  3.50/250.29/267.29/森林/sēnlín,   73.00/250.29/267.29/廚師/chúshī,     142.50/250.29/267.29/海盜/hǎidào%
+}
+
+\begin{document}
+
+\foreach \x/\tany/\whitey/\hanzi/\pinyin in \Paginaeen {%
+  \Kaart{\x}{\tany}{\whitey}{\hanzi}{\pinyin}%
+}
+
+\newpage
+\foreach \x/\tany/\whitey/\hanzi/\pinyin in \Paginatwee {%
+  \Kaart{\x}{\tany}{\whitey}{\hanzi}{\pinyin}%
+}
+
+\newpage
+\foreach \x/\tany/\whitey/\hanzi/\pinyin in \Paginathree {%
+  \Kaart{\x}{\tany}{\whitey}{\hanzi}{\pinyin}%
+}
+\newpage
+\foreach \x/\tany/\whitey/\hanzi/\pinyin in \Paginafour {%
+  \Kaart{\x}{\tany}{\whitey}{\hanzi}{\pinyin}%
+}
+
+\newpage
+\foreach \x/\tany/\whitey/\hanzi/\pinyin in \Paginafive {%
+  \Kaart{\x}{\tany}{\whitey}{\hanzi}{\pinyin}%
+}
+\newpage
+\foreach \x/\tany/\whitey/\hanzi/\pinyin in \Paginasix {%
+  \Kaart{\x}{\tany}{\whitey}{\hanzi}{\pinyin}%
+}
+\newpage
+\foreach \x/\tany/\whitey/\hanzi/\pinyin in \Paginaseven {%
+  \Kaart{\x}{\tany}{\whitey}{\hanzi}{\pinyin}%
+}
+\newpage
+\foreach \x/\tany/\whitey/\hanzi/\pinyin in \Paginaeight {%
+  \Kaart{\x}{\tany}{\whitey}{\hanzi}{\pinyin}%
+}
+\newpage
+\foreach \x/\tany/\whitey/\hanzi/\pinyin in \Paginanine {%
+  \Kaart{\x}{\tany}{\whitey}{\hanzi}{\pinyin}%
+}
+
+\newpage
+\foreach \x/\tany/\whitey/\hanzi/\pinyin in \Paginaten {%
+  \Kaart{\x}{\tany}{\whitey}{\hanzi}{\pinyin}%
+}
+
+\newpage
+\foreach \x/\tany/\whitey/\hanzi/\pinyin in \Paginaeleven {%
+  \Kaart{\x}{\tany}{\whitey}{\hanzi}{\pinyin}%
+}
+
+\newpage
+\foreach \x/\tany/\whitey/\hanzi/\pinyin in \Paginatwelve {%
+  \Kaart{\x}{\tany}{\whitey}{\hanzi}{\pinyin}%
+}
+
+\newpage
+\foreach \x/\tany/\whitey/\hanzi/\pinyin in \Paginathirteen {%
+  \Kaart{\x}{\tany}{\whitey}{\hanzi}{\pinyin}%
+}
+
+\newpage
+\foreach \x/\tany/\whitey/\hanzi/\pinyin in \Paginafourteen {%
+  \Kaart{\x}{\tany}{\whitey}{\hanzi}{\pinyin}%
+}
+
+\end{document}
